@@ -3,396 +3,147 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Learning to Talk</title>
-<meta name="description" content="Research on how adults learn a new language well enough for daily conversation, and what makes it faster.">
+<title>Why Learners Freeze</title>
+<meta name="description" content="Research for my final project: why people who study a language for months still can't hold a simple conversation.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#faf7f2; --surface:#ffffff; --ink:#1d1b18; --muted:#6b655c; --line:#e6dfd4;
-  --accent:#d9480f; --accent-soft:#fff0e6; --green:#2b8a3e; --green-soft:#e9f7ec;
-  --amber:#b7791f; --amber-soft:#fdf4e1; --grey-soft:#f1eee9;
+  --bg:#fbfaf7; --ink:#1a1a1a; --muted:#666; --line:#d8d5cf; --mark:#ffe58a; --link:#1a1a1a;
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#16140f; --surface:#211e18; --ink:#f2ede4; --muted:#a9a194; --line:#373229;
-    --accent:#ff8a4c; --accent-soft:#3a2416; --green:#69db7c; --green-soft:#1d3322;
-    --amber:#f6c25b; --amber-soft:#382d17; --grey-soft:#2a261f;
-  }
+  :root:not([data-theme="light"]){ --bg:#151515; --ink:#ececec; --muted:#9a9a9a; --line:#3a3a3a; --mark:#6b5a12; --link:#ececec; }
 }
-:root[data-theme="dark"]{
-  --bg:#16140f; --surface:#211e18; --ink:#f2ede4; --muted:#a9a194; --line:#373229;
-  --accent:#ff8a4c; --accent-soft:#3a2416; --green:#69db7c; --green-soft:#1d3322;
-  --amber:#f6c25b; --amber-soft:#382d17; --grey-soft:#2a261f;
-}
+:root[data-theme="dark"]{ --bg:#151515; --ink:#ececec; --muted:#9a9a9a; --line:#3a3a3a; --mark:#6b5a12; --link:#ececec; }
+
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:880px;margin:0 auto;padding:0 16px}
-h1,h2,h3{font-family:Fraunces,Georgia,serif;line-height:1.2;margin:0}
-h2{font-size:clamp(1.5rem,4vw,2rem);margin-bottom:.4rem}
-h3{font-size:1.15rem;margin-bottom:.35rem}
-p{margin:.5rem 0}
-a{color:var(--accent)}
-.kicker{font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
-.lead{color:var(--muted);font-size:1.05rem;max-width:62ch}
+body{margin:0;background:var(--bg);color:var(--ink);font:19px/1.6 Newsreader,Georgia,serif}
+main{max-width:660px;margin:0 auto;padding:56px 16px 80px}
+h1{font-size:clamp(2rem,6vw,2.7rem);line-height:1.15;font-weight:600;margin:0 0 16px}
+h2{font-size:1.45rem;font-weight:600;margin:56px 0 12px;line-height:1.25}
+h3{font-size:1.1rem;font-weight:600;margin:28px 0 4px}
+p{margin:0 0 16px}
+a{color:var(--link)}
+.meta{font-family:system-ui,sans-serif;font-size:.8rem;color:var(--muted);margin-bottom:40px}
+mark{background:var(--mark);color:inherit;padding:0 2px}
+sup a{text-decoration:none;font-family:system-ui,sans-serif;font-size:.68rem;color:var(--muted);padding-left:1px}
+sup a:hover{color:var(--ink)}
+hr{border:0;border-top:1px solid var(--line);margin:48px 0}
 
-nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-nav .wrap{display:flex;gap:18px;overflow-x:auto;padding-top:10px;padding-bottom:10px;scrollbar-width:none}
-nav a{color:var(--muted);text-decoration:none;font-size:.88rem;white-space:nowrap}
-nav a:hover{color:var(--ink)}
+.pain{font-size:clamp(1.4rem,4.2vw,1.8rem);line-height:1.35;margin:8px 0 24px}
 
-header{padding:64px 0 32px}
-header h1{font-size:clamp(2.2rem,7vw,3.6rem);margin:.4rem 0 .8rem}
-header h1 em{color:var(--accent);font-style:italic}
+table{width:100%;border-collapse:collapse;margin:8px 0 8px;font-size:.95rem}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600}
+td:first-child,th:first-child{padding-left:0;width:50%}
+.caption{font-family:system-ui,sans-serif;font-size:.8rem;color:var(--muted);margin-bottom:24px}
 
-.conclusion{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:14px;padding:24px 24px 20px;margin:8px 0 8px}
-.conclusion p.big{font-family:Fraunces,Georgia,serif;font-size:clamp(1.2rem,3.2vw,1.5rem);line-height:1.4;margin:.3rem 0 .8rem}
-.formula{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
-.formula span{background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:.88rem;font-weight:500}
-.formula b{color:var(--muted);font-weight:600}
+.loop{font-size:1rem;border-left:3px solid var(--ink);padding:4px 0 4px 16px;margin:12px 0 20px}
+.loop span{white-space:nowrap}
 
-section{padding:48px 0;border-top:1px solid var(--line)}
-.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:20px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
-.card .n{font-family:Fraunces,Georgia,serif;font-size:1.6rem;color:var(--accent);line-height:1}
-.card h3{margin-top:6px}
-.card p{color:var(--muted);font-size:.93rem;margin:0}
+ol.reasons{padding-left:1.2em;margin:0 0 16px}
+ol.reasons li{margin-bottom:12px}
 
-.badge{display:inline-block;font-size:.72rem;font-weight:600;border-radius:6px;padding:2px 8px;vertical-align:middle;margin-left:6px;font-family:Inter,sans-serif;letter-spacing:.02em}
-.strong{background:var(--green-soft);color:var(--green)}
-.medium{background:var(--amber-soft);color:var(--amber)}
-.weak{background:var(--grey-soft);color:var(--muted)}
-.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.85rem;color:var(--muted);margin-top:10px}
+ul.plain{padding-left:1.1em;margin:0 0 16px}
+ul.plain li{margin-bottom:8px}
 
-table{width:100%;border-collapse:collapse;font-size:.93rem;margin-top:14px}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-weight:600;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
-.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.q{font-style:italic}
 
-.evidence{display:grid;gap:14px;margin-top:20px}
-.evidence details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-.evidence summary{cursor:pointer;font-family:Fraunces,Georgia,serif;font-size:1.12rem;font-weight:600;list-style:none}
-.evidence summary::-webkit-details-marker{display:none}
-.evidence summary::after{content:"+";float:right;color:var(--muted);font-family:Inter,sans-serif}
-.evidence details[open] summary::after{content:"–"}
-.evidence ul{margin:.6rem 0 0;padding-left:1.1rem}
-.evidence li{margin:.3rem 0}
-.take{background:var(--accent-soft);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:.93rem}
-
-.bars{margin-top:18px;display:grid;gap:10px}
-.bar{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;font-size:.9rem}
-.track{background:var(--grey-soft);border-radius:6px;height:26px;position:relative;overflow:hidden}
-.fill{background:var(--accent);height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-weight:600;font-size:.8rem}
-.fill.light{background:color-mix(in srgb,var(--accent) 55%,var(--grey-soft))}
-.note{color:var(--muted);font-size:.85rem}
-
-.routine{display:grid;gap:10px;margin-top:18px}
-.step{display:grid;grid-template-columns:72px 1fr;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;align-items:start}
-.step .t{font-family:Fraunces,Georgia,serif;font-weight:700;color:var(--accent);font-size:1.1rem}
-.step p{margin:0;color:var(--muted);font-size:.92rem}
-
-.hmw{counter-reset:h;display:grid;gap:12px;margin-top:18px}
-.hmw div{counter-increment:h;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px 16px 56px;position:relative}
-.hmw div::before{content:counter(h);position:absolute;left:18px;top:14px;font-family:Fraunces,Georgia,serif;font-size:1.4rem;color:var(--accent)}
-.hmw b{display:block}
-.hmw span{color:var(--muted);font-size:.9rem}
-
-.sources h3{margin-top:22px;font-size:1rem}
-.sources ul{padding-left:1.1rem;margin:.4rem 0;font-size:.88rem}
-.sources li{margin:.25rem 0;word-break:break-word}
-
-footer{padding:40px 0 60px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
-@media (max-width:520px){
-  .bar{grid-template-columns:1fr;gap:4px}
-  .step{grid-template-columns:1fr;gap:4px}
-}
+.notes{font-family:system-ui,sans-serif;font-size:.82rem;line-height:1.5;color:var(--muted)}
+.notes ol{padding-left:1.4em}
+.notes li{margin-bottom:6px;word-break:break-word}
+.notes a{color:var(--muted)}
 </style>
 </head>
 <body>
+<main>
 
-<nav><div class="wrap">
-  <a href="#conclusion">Conclusion</a>
-  <a href="#key">8 key findings</a>
-  <a href="#goal">The goal</a>
-  <a href="#theory">Theories</a>
-  <a href="#evidence">Evidence</a>
-  <a href="#apps">Apps &amp; AI</a>
-  <a href="#routine">Routine</a>
-  <a href="#design">Design gaps</a>
-  <a href="#sources">Sources</a>
-</div></nav>
+<h1>Why people study a language for months and still can't order a coffee</h1>
+<p class="meta">Research for my final project · November 2026 · <a href="README.md">plain notes version</a></p>
 
-<div class="wrap">
-<header>
-  <div class="kicker">Final project · Research</div>
-  <h1>How people learn to <em>talk</em> in a new language</h1>
-  <p class="lead">What the research says about learning a language well enough for everyday conversation, and what actually makes it faster.</p>
-</header>
+<p>I wanted to know how adults learn a new language well enough for everyday conversation, and why so many of us get stuck. I read reviews, meta-analyses and app studies. This is what I found.</p>
 
-<div id="conclusion" class="conclusion">
-  <div class="kicker">Main conclusion</div>
-  <p class="big">Most people don't fail at conversation because they don't know enough. They fail because they don't <em>speak</em> enough, and fear is a big reason they don't.</p>
-  <p>The fastest route to daily conversation combines lots of <strong>understandable listening</strong>, the <strong>most common words and ready-made phrases</strong> reviewed <strong>spaced out over days</strong>, and <strong>real speaking with feedback</strong> from early on. Underneath all of it, the learner needs to feel <strong>safe enough to try</strong>. Apps are good at the memory part, but the research points to the same gap again and again: getting from knowing words to actually saying them out loud to a real person.</p>
-  <div class="formula">
-    <span>Understandable input</span><b>+</b>
-    <span>Frequent words &amp; chunks</span><b>+</b>
-    <span>Spaced self-testing</span><b>+</b>
-    <span>Speaking with feedback</span><b>+</b>
-    <span>Low fear</span>
-  </div>
+<h2>The main problem</h2>
+<p class="pain"><mark>Most learners don't get stuck because they know too little. They get stuck because they almost never practice speaking, and they're scared to.</mark></p>
+<p>People spend months on flashcards and apps, and they can recognize hundreds of words on a screen. Then a real person asks them a question and their mind goes blank.</p>
+<p>That's because recognizing a word and saying it out loud in real time are different skills. Most study time goes into the first one, but conversation needs the second.</p>
+
+<table>
+  <tr><th>What most learners practice</th><th>What conversation needs</th></tr>
+  <tr><td>Recognizing words</td><td>Coming up with words fast</td></tr>
+  <tr><td>Tapping the right answer</td><td>Speaking out loud</td></tr>
+  <tr><td>Alone, no time pressure</td><td>With a person, in real time</td></tr>
+  <tr><td>The app marks it wrong</td><td>Noticing and fixing it yourself</td></tr>
+</table>
+<p class="caption">The gap between studying a language and speaking it.</p>
+
+<h2>Why it happens</h2>
+<ol class="reasons">
+  <li><strong>Adults need to practice speaking on purpose.</strong> Children can pick a language up just by being around it. Adults mostly don't. Research reviews keep finding that real back-and-forth conversation is what builds speaking skill.<sup><a href="#n1">1</a>,<a href="#n2">2</a></sup></li>
+  <li><strong>Apps train memory more than speaking.</strong> Duolingo's own study found that about half of learners reached basic speaking level (A2) by the end of that section of the course, and the company called the speaking gains "modest".<sup><a href="#n3">3</a></sup> Most of this research is done by Duolingo's own staff.<sup><a href="#n4">4</a></sup></li>
+  <li><strong>Fear keeps people quiet.</strong> Language anxiety works like stage fright, and it's worst when speaking.<sup><a href="#n5">5</a></sup> Nervous learners are less willing to talk,<sup><a href="#n6">6</a></sup> so they get less practice and stay nervous:</li>
+</ol>
+<div class="loop">
+  <span>Scared to speak →</span> <span>speak less →</span> <span>less practice →</span> <span>still unsure →</span> <span>scared to speak</span>
 </div>
 
-<section id="key">
-  <h2>The 8 things that matter most</h2>
-  <div class="legend">
-    <span><span class="badge strong">Strong evidence</span></span>
-    <span><span class="badge medium">Medium</span></span>
-    <span><span class="badge weak">Early / thin</span></span>
-  </div>
-  <div class="grid">
-    <div class="card"><div class="n">01</div><h3>Understandable input <span class="badge strong">Strong</span></h3><p>Listen and read a lot at a level you can <em>almost</em> fully follow.</p></div>
-    <div class="card"><div class="n">02</div><h3>Talk with people <span class="badge strong">Strong</span></h3><p>Back-and-forth conversation is the best-supported driver of speaking progress.</p></div>
-    <div class="card"><div class="n">03</div><h3>Common words first <span class="badge strong">Strong</span></h3><p>About 2,000–3,000 word families cover roughly 95% of everyday speech.</p></div>
-    <div class="card"><div class="n">04</div><h3>Learn chunks <span class="badge medium">Medium</span></h3><p>Ready-made phrases ("Can I get…") make you sound fluent quickly.</p></div>
-    <div class="card"><div class="n">05</div><h3>Spaced self-testing <span class="badge strong">Strong</span></h3><p>Recalling beats re-reading, and spreading reviews over days beats cramming.</p></div>
-    <div class="card"><div class="n">06</div><h3>Get corrected <span class="badge strong">Strong</span></h3><p>Being asked to fix your own mistake beats just hearing the right version.</p></div>
-    <div class="card"><div class="n">07</div><h3>Lower the fear <span class="badge medium">Medium</span></h3><p>Anxious learners speak less, so they practice less. It's a loop.</p></div>
-    <div class="card"><div class="n">08</div><h3>Sleep on it <span class="badge medium">Medium</span></h3><p>Sleeping between sessions helps new words stick.</p></div>
-  </div>
+<h2>What actually helps</h2>
+<p>The research agrees on a short list. None of these is a secret. The problem is that most people only do the first two.</p>
+
+<h3>Learn the most common words first</h3>
+<p>About 2,000 to 3,000 word families cover around 95% of everyday spoken English. That's roughly enough to follow a conversation.<sup><a href="#n7">7</a></sup> Learning by frequency works better than learning themed lists like "zoo animals".</p>
+
+<h3>Test yourself, spread out over days</h3>
+<p>Trying to remember a word works better than re-reading it, and reviewing over several days works better than cramming.<sup><a href="#n8">8</a></sup> Sleeping between sessions also helps words stick.<sup><a href="#n9">9</a></sup> One catch: most of these studies use flashcards, so they show people can <em>remember</em> words, not that they can <em>use</em> them.</p>
+
+<h3>Learn whole phrases, then say them</h3>
+<p>Fluent speakers lean on ready-made phrases like "Can I get…" and "What do you mean?". Learners who use more of these sound more fluent. But just reading phrases doesn't carry over into speaking. You have to actually use them.<sup><a href="#n10">10</a></sup></p>
+
+<h3>Get corrected, and try again yourself</h3>
+<p>Feedback on mistakes works. Being asked to fix your own mistake ("Sorry, you <em>goed</em>?") teaches more than just hearing someone say it correctly.<sup><a href="#n11">11</a></sup></p>
+
+<h3>Make speaking feel safe</h3>
+<p>Early studies of AI conversation partners mostly find one thing: <strong>they make people less nervous</strong>. Learners get a place to rehearse where nobody is judging them.<sup><a href="#n12">12</a></sup> These studies are small, and students still say AI can't replace a real person. That makes it a rehearsal, not the real thing.</p>
+
+<h2>What "daily conversation" means</h2>
+<p>On the standard language scale (A1 to C2), everyday conversation is around <strong>A2 to B1</strong>: ordering food, small talk, getting around while traveling, talking about familiar topics. It's a reachable goal, far below full fluency.</p>
+<p>How long it takes depends on the language. The US Foreign Service Institute estimates about 600–750 class hours for an English speaker to become <em>professionally</em> fluent in Spanish or French, and about 2,200 for Mandarin, Japanese, Korean or Arabic.<sup><a href="#n13">13</a></sup> Daily conversation takes much less than that, but the ratio is similar.</p>
+
+<hr>
+
+<h2>Conclusion</h2>
+<p>Learning words is the part we've already figured out. Apps and flashcards handle it well. <mark>The hard part is the jump from knowing words to saying them to a real person</mark>, and fear is what stops people from making it.</p>
+<p>So for my final project, I'm not going to design another way to memorize vocabulary. I want to design for that jump. Some questions I'm starting from:</p>
+<ul class="plain">
+  <li class="q">How might we make someone's first real conversations feel less scary?</li>
+  <li class="q">How might we help people actually say phrases out loud, not just read them?</li>
+  <li class="q">How might practice push people to fix their own mistakes?</li>
+  <li class="q">How might everyday moments, like cooking or ordering coffee, become speaking practice?</li>
+</ul>
+
+<hr>
+
+<section class="notes">
+<h3 style="font-family:Newsreader,Georgia,serif;color:var(--ink)">Sources</h3>
+<p>I found these through web searches and summaries. Check the original paper before quoting an exact number.</p>
+<ol>
+  <li id="n1">Loewen &amp; Sato (2018). Interaction and instructed second language acquisition. <em>Language Teaching</em>. <a href="https://www.cambridge.org/core/product/78A156EE200F744F5978F99BFB073DBE">cambridge.org</a></li>
+  <li id="n2">CAELA. Second Language Acquisition in Adults: From Research to Practice. <a href="https://lincs.ed.gov/professional-development/resource-collections/profile-395">lincs.ed.gov</a></li>
+  <li id="n3">Duolingo (2021). How well does Duolingo teach speaking skills? <a href="https://blog.duolingo.com/how-well-does-duolingo-teach-speaking-skills">blog.duolingo.com</a></li>
+  <li id="n4">Critique of Duolingo's white papers. <em>CALL-EJ</em>. <a href="https://callej.org/index.php/journal/article/download/419/347/1013">callej.org</a></li>
+  <li id="n5">Horwitz (2010). Foreign and second language anxiety. <em>Language Teaching</em>. Based on Horwitz, Horwitz &amp; Cope (1986). <a href="https://www.cambridge.org/core/services/aop-cambridge-core/content/view/3782D56F94F86BFA6765E5F32910DB39/S026144480999036Xa.pdf/foreign_and_second_language_anxiety.pdf">cambridge.org</a></li>
+  <li id="n6">Modeling EFL learners' willingness to communicate. <em>Annual Review of Applied Linguistics</em>. <a href="https://resolve.cambridge.org/core/journals/annual-review-of-applied-linguistics/article/modeling-efl-learners-willingness-to-communicate-the-roles-of-facetoface-and-digital-l2-communication-anxiety/3414896607A2536A9C882CA6EC39F30C">cambridge.org</a>; speaking anxiety and WTC study (2022) <a href="https://dergipark.org.tr/en/download/article-file/2289352">dergipark.org.tr</a></li>
+  <li id="n7">Lexical coverage of spoken English (2022). <em>Frontiers in Psychology</em>. <a href="https://www.frontiersin.org/articles/10.3389/fpsyg.2022.831684">frontiersin.org</a>; Nation &amp; Waring, Vocabulary size, text coverage and word lists <a href="https://www.lextutor.ca/research/nation_waring_97.html">lextutor.ca</a></li>
+  <li id="n8">Kim &amp; Webb (2022), spacing in L2 learning, meta-analysis (thesis re-analysis) <a href="https://ir.lib.uwo.ca/etd/8600/">ir.lib.uwo.ca</a>; spaced repetition for vocabulary, systematic review <a href="https://riset.unisma.ac.id/index.php/JREALL/article/view/25562">riset.unisma.ac.id</a></li>
+  <li id="n9">Mazza et al. (2016). <em>Psychological Science</em>. <a href="https://www.psychologicalscience.org/journals/psychological-science/0956797616659930/">psychologicalscience.org</a>; sleep and app-based learning (CogSci 2020) <a href="https://escholarship.org/uc/item/27r4h31z">escholarship.org</a></li>
+  <li id="n10">Review of formulaic sequences and fluency (Boers &amp; Lindstromberg). <em>TESL Canada Journal</em>. <a href="https://teslcanadajournal.ca/index.php/tesl/article/download/1271/1106">teslcanadajournal.ca</a>; François &amp; Albakry (2021) <a href="https://www.lltjournal.org/item-detail/978/">lltjournal.org</a></li>
+  <li id="n11">Lyster &amp; Saito (2010), discussed in Lyster, Saito &amp; Sato (2013). Oral corrective feedback. <a href="https://www.cambridge.org/core/product/4999EE1C8379B2BF026B148EAF373CA1">cambridge.org</a></li>
+  <li id="n12">AI-mediated speaking practice (2026). <em>Journal of International Students</em>. <a href="https://ojed.org/jis/article/view/11494">ojed.org</a>; chatbots and speaking anxiety, <em>TESOL in Context</em> (2026) <a href="https://ojs.deakin.edu.au/index.php/tesol/article/download/2275/1855/9990">deakin.edu.au</a></li>
+  <li id="n13">FSI language difficulty overview. <a href="https://fsi-language-courses.org/blog/fsi-language-difficulty">fsi-language-courses.org</a></li>
+</ol>
 </section>
 
-<section id="goal">
-  <h2>What "daily conversation" means</h2>
-  <p class="lead">On the CEFR scale (A1 → C2), everyday conversation is roughly <strong>A2–B1</strong>. That's far below full fluency.</p>
-  <div class="tablewrap"><table>
-    <tr><th>Level</th><th>You can…</th></tr>
-    <tr><td><strong>A2</strong></td><td>Handle simple routine exchanges: ordering food, shopping, small talk about yourself.</td></tr>
-    <tr><td><strong>B1</strong></td><td>Deal with most travel situations and talk about familiar topics, plans and experiences.</td></tr>
-  </table></div>
-  <h3 style="margin-top:28px">How hard is the language?</h3>
-  <p>The US Foreign Service Institute estimates the classroom hours English speakers need for <em>professional</em> fluency. Daily conversation takes much less, but the ratio shows the difficulty.</p>
-  <div class="bars">
-    <div class="bar"><span>Spanish, French, Italian</span><div class="track"><div class="fill light" style="width:30%">~600–750 h</div></div></div>
-    <div class="bar"><span>Mandarin, Japanese, Korean, Arabic</span><div class="track"><div class="fill" style="width:100%">~2,200 h</div></div></div>
-  </div>
-  <p class="note">FSI figures come from their own intensive classes, not controlled studies. Use them as a rough guide only.</p>
-</section>
-
-<section id="theory">
-  <h2>The big theories, in plain words</h2>
-  <div class="tablewrap"><table>
-    <tr><th>Theory</th><th>The idea</th><th>So learners should…</th></tr>
-    <tr><td><strong>Input</strong><br><span class="note">Krashen, 1982</span></td><td>We acquire language by understanding messages slightly above our level.</td><td>Listen and read a lot, at the right level.</td></tr>
-    <tr><td><strong>Output</strong><br><span class="note">Swain, 1985</span></td><td>Having to speak makes you notice what you don't know yet.</td><td>Speak early, even badly.</td></tr>
-    <tr><td><strong>Interaction</strong><br><span class="note">Long, 1996</span></td><td>Fixing misunderstandings together in conversation drives learning.</td><td>Talk to people and ask "what do you mean?"</td></tr>
-    <tr><td><strong>Noticing</strong><br><span class="note">Schmidt, 1990</span></td><td>You only learn what you consciously notice.</td><td>Pay attention to how people actually say things.</td></tr>
-    <tr><td><strong>Four strands</strong><br><span class="note">Nation</span></td><td>Balance input, output, deliberate study and fluency practice equally.</td><td>Don't only do flashcards, and don't only chat.</td></tr>
-  </table></div>
-  <p class="take" style="margin-top:16px">These aren't rival theories. Together they describe one loop: <strong>understand → notice → try to say it → get feedback → repeat.</strong></p>
-</section>
-
-<section id="evidence">
-  <h2>The evidence, topic by topic</h2>
-  <p class="lead">Tap a topic to open it.</p>
-  <div class="evidence">
-
-    <details open>
-      <summary>Interaction is the strongest factor <span class="badge strong">Strong</span></summary>
-      <ul>
-        <li>A major review (Loewen &amp; Sato, 2018) concludes interaction promotes language development, though task design and who you talk to matter.</li>
-        <li>Adults usually reach speaking proficiency only after many hours of <strong>deliberate practice</strong>. Kids can pick it up from exposure; adults need to practice on purpose.</li>
-        <li>Motivation, interaction and vocabulary are named as the three most critical areas for adult learners (Center for Applied Linguistics).</li>
-      </ul>
-      <div class="take">Speak early and often. Conversation is the practice, not the reward at the end.</div>
-    </details>
-
-    <details>
-      <summary>How many words do you need? <span class="badge strong">Strong</span></summary>
-      <div class="bars">
-        <div class="bar"><span>95% coverage</span><div class="track"><div class="fill light" style="width:40%">2,000–3,000</div></div></div>
-        <div class="bar"><span>98% coverage</span><div class="track"><div class="fill" style="width:100%">5,000–7,000</div></div></div>
-      </div>
-      <p class="note">Word families needed to cover informal spoken English. 95% is roughly the minimum to follow along; 98% is comfortable.</p>
-      <ul>
-        <li>Studies of TV and soap operas: ~2,000 families for 95% (Al-Surmi, 2014); ~3,000 for movies and TV (Webb &amp; Rodgers).</li>
-        <li>Real conversation may need a bit more, because speech goes by fast and you can't re-read it.</li>
-      </ul>
-      <div class="take">The first 1,000 words pay off the most. Learn words by how often they're used, not by themes like "zoo animals".</div>
-    </details>
-
-    <details>
-      <summary>Chunks and ready-made phrases <span class="badge medium">Medium</span></summary>
-      <ul>
-        <li>Native speakers rely heavily on pre-built phrases (Wray, 2002).</li>
-        <li>Learners who use more chunks are rated <strong>more fluent</strong> (Boers et al., 2006; François &amp; Albakry, 2021).</li>
-        <li>But just noticing chunks while reading doesn't reliably carry over into speaking (Boers &amp; Lindstromberg, 2012).</li>
-      </ul>
-      <div class="take">Learn phrases, then <em>use</em> them out loud. Seeing them isn't enough.</div>
-    </details>
-
-    <details>
-      <summary>Memory: spacing and self-testing <span class="badge strong">Strong</span></summary>
-      <ul>
-        <li><strong>Retrieval practice</strong> (testing yourself) beats re-studying.</li>
-        <li>A meta-analysis of language spacing studies (Kim &amp; Webb, 2022) found a reliable small-to-moderate benefit for spacing.</li>
-        <li>In general memory research, spaced retrieval beat massed retrieval with a large effect (g ≈ 0.74). Gradually expanding the gaps wasn't clearly better than equal gaps.</li>
-        <li>Most studies use flashcard word pairs. They show you can <em>remember</em> words, not that you can <em>use</em> them.</li>
-      </ul>
-      <div class="take">Flashcards are great for memory, but they're only one part of learning to talk.</div>
-    </details>
-
-    <details>
-      <summary>Corrective feedback <span class="badge strong">Strong</span></summary>
-      <ul>
-        <li>Feedback on errors works, with a medium effect that lasts over time (Li, 2010 meta-analysis).</li>
-        <li><strong>Prompts</strong> (pushing the learner to self-correct) had larger effects than <strong>recasts</strong> (the teacher just says it correctly) in classroom studies (Lyster &amp; Saito, 2010).</li>
-      </ul>
-      <div class="take">"Try that again?" teaches more than quietly fixing someone's sentence.</div>
-    </details>
-
-    <details>
-      <summary>Shadowing for pronunciation and fluency <span class="badge weak">Early</span></summary>
-      <ul>
-        <li>Shadowing means listening to native audio and repeating it at the same time, like an echo.</li>
-        <li>Several small studies report better fluency and pronunciation, but most are short, single-classroom studies.</li>
-      </ul>
-      <div class="take">Promising and cheap to try, but not yet proven at scale.</div>
-    </details>
-
-    <details>
-      <summary>Speaking anxiety, the hidden blocker <span class="badge medium">Medium</span></summary>
-      <ul>
-        <li>Foreign Language Classroom Anxiety (Horwitz, Horwitz &amp; Cope, 1986) works like stage fright and is strongest during speaking.</li>
-        <li>Higher anxiety goes with lower <strong>Willingness to Communicate</strong> (MacIntyre). Anxious learners avoid speaking, practice less, and stay anxious.</li>
-      </ul>
-      <div class="take">Making speaking feel safer and lower-stakes speeds up learning indirectly.</div>
-    </details>
-
-    <details>
-      <summary>Sleep <span class="badge medium">Medium</span></summary>
-      <ul>
-        <li>Sleeping between study sessions meant learners needed less practice to relearn words, and they remembered them longer (Mazza et al., 2016).</li>
-        <li>A short nap helped new foreign words stick (University of Bern, 2019).</li>
-        <li>Data from the language app Memrise also suggests sleep helps memory outside the lab.</li>
-      </ul>
-      <div class="take">Review before bed, then sleep.</div>
-    </details>
-
-  </div>
-</section>
-
-<section id="apps">
-  <h2>What about apps and AI?</h2>
-  <div class="grid">
-    <div class="card">
-      <h3>Duolingo &amp; apps <span class="badge weak">Mixed</span></h3>
-      <p>Duolingo's own 2021 study (258 learners) found about <strong>half reached A2 speaking</strong>: ~66% for Spanish, ~53% for French. The company called the gains "modest". Most of this research is written by Duolingo staff, and critics point to biased samples.</p>
-      <p class="take">Good for vocabulary and daily habits. Weak on real conversation.</p>
-    </div>
-    <div class="card">
-      <h3>AI conversation partners <span class="badge weak">Early</span></h3>
-      <p>2025–2026 studies from several countries report AI speaking practice <strong>reduces nervousness</strong> and improves confidence and fluency. But most are small, short, or have no control group. Students and teachers agree AI can't fully replace human conversation.</p>
-      <p class="take">Promising as a rehearsal space before talking to real people.</p>
-    </div>
-  </div>
-</section>
-
-<section id="routine">
-  <h2>A research-based daily routine</h2>
-  <p class="lead">About 40 minutes a day, plus one real conversation a week.</p>
-  <div class="routine">
-    <div class="step"><span class="t">10 min</span><div><strong>Spaced flashcards</strong><p>The most common words and phrases. Test yourself; don't just read.</p></div></div>
-    <div class="step"><span class="t">15 min</span><div><strong>Listen</strong><p>Podcasts, shows or YouTube slightly above your level.</p></div></div>
-    <div class="step"><span class="t">5 min</span><div><strong>Shadow</strong><p>Repeat a short clip out loud at the same time as the speaker.</p></div></div>
-    <div class="step"><span class="t">10 min</span><div><strong>Speak</strong><p>With a person, a tutor, or AI as rehearsal. Ask to be corrected.</p></div></div>
-    <div class="step"><span class="t">Night</span><div><strong>Review, then sleep</strong><p>A quick review before bed helps it stick.</p></div></div>
-    <div class="step"><span class="t">Weekly</span><div><strong>One real conversation</strong><p>A language exchange, tutor, café or friend.</p></div></div>
-  </div>
-</section>
-
-<section id="design">
-  <h2>Gaps in the research and design opportunities</h2>
-  <p class="lead">Where the research shows a problem that hasn't been solved yet. These are starting points for my final project.</p>
-  <div class="hmw">
-    <div><b>How might we make the first real conversations feel safe?</b><span>Fear blocks practice, so lowering it speeds everything up.</span></div>
-    <div><b>How might we bridge practicing in an app and talking in real life?</b><span>People recognize words in an app but freeze in a real café.</span></div>
-    <div><b>How might we get people to <em>use</em> phrases, not just see them?</b><span>Reading chunks doesn't carry over into speaking.</span></div>
-    <div><b>How might feedback prompt learners to fix their own mistakes?</b><span>Self-correction beats being corrected.</span></div>
-    <div><b>How might we make daily practice something people want to come back to?</b><span>Spaced repetition works, but people quit.</span></div>
-    <div><b>How might we turn everyday moments into speaking practice?</b><span>Adults need deliberate practice: cooking, commuting, ordering coffee.</span></div>
-  </div>
-</section>
-
-<section id="sources" class="sources">
-  <h2>Sources</h2>
-  <p class="note">I gathered these through web searches and summaries. Before quoting a specific number, check the original paper.</p>
-
-  <h3>Theory &amp; reviews</h3>
-  <ul>
-    <li><a href="https://www.cambridge.org/core/product/78A156EE200F744F5978F99BFB073DBE">Loewen &amp; Sato (2018), Interaction and instructed SLA, <em>Language Teaching</em></a></li>
-    <li><a href="https://lincs.ed.gov/professional-development/resource-collections/profile-395">CAELA, Second Language Acquisition in Adults: From Research to Practice</a></li>
-    <li><a href="https://cal.org/caela/esl_resources/bibliographies/sla.html">CAL / CAELA, SLA bibliography</a></li>
-    <li><a href="https://www.jbe-platform.com/content/journals/10.1075/lab.3.1.03sla">Slabakova (2013), adult SLA review</a></li>
-  </ul>
-  <h3>Vocabulary</h3>
-  <ul>
-    <li><a href="https://www.lextutor.ca/research/nation_waring_97.html">Nation &amp; Waring, Vocabulary size, text coverage and word lists</a></li>
-    <li><a href="https://www.frontiersin.org/articles/10.3389/fpsyg.2022.831684">Frontiers in Psychology (2022), lexical coverage of spoken English</a></li>
-    <li><a href="https://www.lextutor.ca/cover/papers/schmitt_cobb_etal_2015.pdf">Schmitt, Cobb et al. (2015)</a></li>
-  </ul>
-  <h3>Chunks &amp; formulaic language</h3>
-  <ul>
-    <li><a href="https://teslcanadajournal.ca/index.php/tesl/article/download/1271/1106">TESL Canada Journal, review of formulaic sequences and fluency</a></li>
-    <li><a href="https://www.lltjournal.org/item-detail/978/">François &amp; Albakry (2021), <em>Language Learning &amp; Technology</em></a></li>
-    <li><a href="https://resolve.cambridge.org/core/journals/language-teaching/article/abs/replication-research-in-pedagogical-approaches-to-spoken-fluency-and-formulaic-sequences-a-call-for-replication-of-wood-2009-and-boers-eyckmans-kappel-stengers-demecheleer-2006/8D7676F9CA677D380F6B3870CE20DA9F">Replication call: Wood (2009) and Boers et al. (2006)</a></li>
-  </ul>
-  <h3>Spacing &amp; retrieval</h3>
-  <ul>
-    <li><a href="https://ir.lib.uwo.ca/etd/8600/">L2 spacing meta-analysis (Kim &amp; Webb), thesis re-analysis</a></li>
-    <li><a href="https://riset.unisma.ac.id/index.php/JREALL/article/view/25562">Spaced repetition for EFL/ESL vocabulary, systematic review</a></li>
-    <li><a href="https://uta-ir.tdl.org/uta-ir/handle/10106/31392">Spaced retrieval improves retention of foreign vocabulary</a></li>
-    <li><a href="https://pressto.amu.edu.pl/index.php/ssllt/article/view/49487"><em>Studies in Second Language Learning and Teaching</em></a></li>
-  </ul>
-  <h3>Feedback</h3>
-  <ul>
-    <li><a href="https://www.cambridge.org/core/product/4999EE1C8379B2BF026B148EAF373CA1">Lyster, Saito &amp; Sato (2013), oral corrective feedback</a></li>
-    <li><a href="https://www.researchgate.net/profile/Ahlem-Ammar-2/publication/232021519_One_size_fits_all_Recasts_prompts_and_L2_learning/links/590885a0458515ebb49088ac/One-size-fits-all-Recasts-prompts-and-L2-learning.pdf">Ammar &amp; Spada, One size fits all? Recasts, prompts and L2 learning</a></li>
-  </ul>
-  <h3>Shadowing</h3>
-  <ul>
-    <li><a href="https://jurnal.um-palembang.ac.id/index.php/englishcommunity/article/view/9808">The effect of shadowing on speaking fluency and pronunciation</a></li>
-  </ul>
-  <h3>Anxiety &amp; willingness to communicate</h3>
-  <ul>
-    <li><a href="https://www.cambridge.org/core/services/aop-cambridge-core/content/view/3782D56F94F86BFA6765E5F32910DB39/S026144480999036Xa.pdf/foreign_and_second_language_anxiety.pdf">Horwitz (2010), Foreign and second language anxiety</a></li>
-    <li><a href="https://resolve.cambridge.org/core/journals/annual-review-of-applied-linguistics/article/modeling-efl-learners-willingness-to-communicate-the-roles-of-facetoface-and-digital-l2-communication-anxiety/3414896607A2536A9C882CA6EC39F30C">Willingness to communicate and digital vs face-to-face anxiety</a></li>
-    <li><a href="https://dergipark.org.tr/en/download/article-file/2289352">Speaking anxiety and WTC study (2022)</a></li>
-  </ul>
-  <h3>Sleep</h3>
-  <ul>
-    <li><a href="https://www.psychologicalscience.org/journals/psychological-science/0956797616659930/">Mazza et al. (2016), <em>Psychological Science</em></a></li>
-    <li><a href="https://escholarship.org/uc/item/27r4h31z">Sleep-associated consolidation in app-based language learning (CogSci 2020)</a></li>
-    <li><a href="https://neurosciencenews.com/sleep-vocabulary-learning-10667/">Learning new vocabulary during sleep</a></li>
-  </ul>
-  <h3>Apps &amp; AI</h3>
-  <ul>
-    <li><a href="https://blog.duolingo.com/results-duolingo-efficacy-studies">Duolingo efficacy results (company)</a></li>
-    <li><a href="https://blog.duolingo.com/how-well-does-duolingo-teach-speaking-skills">How well does Duolingo teach speaking (company)</a></li>
-    <li><a href="https://callej.org/index.php/journal/article/download/419/347/1013">Independent critique of Duolingo white papers (CALL-EJ)</a></li>
-    <li><a href="https://www.lltjournal.org/item-detail/1152/">Duolingo effectiveness, <em>Language Learning &amp; Technology</em></a></li>
-    <li><a href="https://ojed.org/jis/article/view/11494">AI-mediated speaking practice in less-resourced EFL contexts (2026)</a></li>
-    <li><a href="https://ojs.deakin.edu.au/index.php/tesol/article/download/2275/1855/9990">Chatbots and speaking anxiety, <em>TESOL in Context</em> (2026)</a></li>
-    <li><a href="https://e-journal.unimudasorong.ac.id/index.php/interactionjournal/article/download/5675/2046/15955">TalkPal AI speaking study (2026)</a></li>
-  </ul>
-  <h3>Language difficulty</h3>
-  <ul>
-    <li><a href="https://fsi-language-courses.org/blog/fsi-language-difficulty">FSI language difficulty overview</a></li>
-  </ul>
-</section>
-</div>
-
-<footer><div class="wrap">Research notes for my final project · November 2026 · <a href="README.md">Read as plain notes</a></div></footer>
+</main>
 </body>
 </html>
