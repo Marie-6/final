@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 450" font-family="'Zen Maru Gothic','Hiragino Sans','Noto Sans JP',sans-serif">
+  <title>Lost Traveler city map</title>
+  <rect width="680" height="450" fill="#F3F7F4"/>
+  <path d="M100 150 L590 150 Q620 150 620 180 L620 300 Q620 330 590 330 L250 330" fill="none" stroke="#EF9F27" stroke-width="6" stroke-linecap="round"/>
+  <g fill="#FFFFFF" stroke="#BA7517" stroke-width="2">
+    <circle cx="100" cy="150" r="9"/><circle cx="250" cy="150" r="9"/><circle cx="400" cy="150" r="9"/><circle cx="550" cy="150" r="9"/>
+    <circle cx="550" cy="330" r="9"/><circle cx="400" cy="330" r="9"/><circle cx="250" cy="330" r="9"/>
+  </g>
+  <g stroke="#5A6782" stroke-width="1">
+    <line x1="100" y1="106" x2="100" y2="139"/><line x1="250" y1="106" x2="250" y2="139"/><line x1="400" y1="106" x2="400" y2="139"/><line x1="550" y1="106" x2="550" y2="139"/>
+    <line x1="550" y1="341" x2="550" y2="360"/><line x1="400" y1="341" x2="400" y2="360"/><line x1="250" y1="341" x2="250" y2="360"/>
+  </g>
+  <g text-anchor="middle">
+    <rect x="40" y="50" width="120" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="100" y="74" font-size="15" font-weight="700" fill="#3C3489">日本語学校</text><text x="100" y="94" font-size="12" fill="#534AB7">1 · Home base</text>
+    <rect x="190" y="50" width="120" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text x="250" y="74" font-size="15" font-weight="700" fill="#085041">カフェ</text><text x="250" y="94" font-size="12" fill="#0F6E56">2 · Order a drink</text>
+    <rect x="340" y="50" width="120" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text x="400" y="74" font-size="15" font-weight="700" fill="#085041">コンビニ</text><text x="400" y="94" font-size="12" fill="#0F6E56">3 · Buy things</text>
+    <rect x="490" y="50" width="120" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text x="550" y="74" font-size="15" font-weight="700" fill="#085041">ラーメン屋</text><text x="550" y="94" font-size="12" fill="#0F6E56">4 · Order a meal</text>
+    <rect x="490" y="360" width="120" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text x="550" y="384" font-size="15" font-weight="700" fill="#085041">地下鉄ハブ</text><text x="550" y="404" font-size="12" fill="#0F6E56">5 · Directions</text>
+    <rect x="340" y="360" width="120" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text x="400" y="384" font-size="15" font-weight="700" fill="#085041">公園</text><text x="400" y="404" font-size="12" fill="#0F6E56">6 · Small talk</text>
+    <rect x="190" y="360" width="120" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+    <text x="250" y="384" font-size="15" font-weight="700" fill="#3C3489">空港</text><text x="250" y="404" font-size="12" fill="#534AB7">7 · Final exam</text>
+    <text x="340" y="232" font-size="13" fill="#5A6782">Subway line: each station unlocks after its lesson</text>
+    <text x="340" y="254" font-size="13" fill="#5A6782">Purple = milestones, teal = daily-life quests</text>
+  </g>
+</svg>
