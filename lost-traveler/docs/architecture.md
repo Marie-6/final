@@ -1,6 +1,6 @@
 # Prototype Architecture
 
-The Day 1 prototype is a single file, `prototype/index.html`: HTML, CSS, and one JavaScript block. It uses three.js r128 (loaded from cdnjs) for 3D, the Web Speech API for speaking, and the browser's speech synthesis for character voices.
+The Day 1 prototype is a single file, `prototype/index.html`: HTML, CSS, and one JavaScript block. It uses three.js r128 (loaded from cdnjs) for 3D, the Web Speech API for speaking, and Inworld text-to-speech for character voices (with the browser's speech synthesis as a fallback). `prototype/key.js` (private, not in git) holds the Inworld API key.
 
 ## Code map
 
@@ -12,7 +12,7 @@ The script is split into labeled sections (search for `/* ---------- `):
 | `WORDS` | Vocabulary: Japanese, romaji, English and Chinese meaning, and the place it is learned. |
 | Game state | `G`: name, yen, earned yen, confidence, spoken answers, learned words, current phase, drink, voice setting. |
 | UI helpers | Toasts, yen, confidence bar, notebook. |
-| Voice out | `say(text)`: speaks Japanese with the system's Japanese voice. |
+| Voice out | `say(text, force, who, rate)`: speaks a line with the voice set for `who` in `SPEAKERS`, or the narrator (`NARRATOR_VOICE`) when `who` is empty. `LESSON_RATE` (0.8) slows the lesson's Listen buttons. Falls back to the system's Japanese voice. |
 | Voice in | `bindMic`, `micBegin`, `micEnd`, `matchOption`: push-to-talk recognition and meaning-based matching. |
 | Dialogue scripts | `TANAKA` and `CAFE`: the conversations, as data. |
 | Dialogue engine | `openDialog`, `showNode`, `renderNode`, `choose`, `endDialog`. |
@@ -80,6 +80,6 @@ Using the konbini as the example (`content/konbini.md` has the content ready):
 - **One file:** fine for a slice, but split it into modules before adding more than two districts.
 - **No saving:** a reload restarts Day 1.
 - **Speech recognition** only works in Chrome and Edge, needs `https` or `localhost`, and sends audio to the browser vendor's speech service. Matching is keyword-based, so very creative answers may not match.
-- **Character voices** depend on a Japanese voice being installed on the computer.
+- **Character voices** need an Inworld key in `key.js` and an internet connection. The published GitHub Pages version has no key, so it uses the built-in voice, which depends on a Japanese voice being installed on the computer.
 - **Chinese track** is Simplified only. The reading-layer system (romaji to hiragana to kanji) isn't built yet; Day 1 always shows romaji except at the till.
 - **3D** is hand-built three.js. For the full game, an engine such as Godot or Unity would make animation and level design much easier.

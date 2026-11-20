@@ -52,7 +52,7 @@ The city has seven districts on one subway line, in learning order. Each station
 
 ## Classroom loop
 
-The school supports the adventure instead of blocking it: learn in class, use it in the city, review in class. Early in the story, a friendly teacher finds the lost player and offers a free spot in her evening class.
+The school supports the adventure instead of blocking it: learn in class, use it in the city, review in class. Early in the story, a friendly teacher finds the lost player and offers a free spot in his evening class.
 
 1. **Prep lesson (3 to 5 minutes):** teaches exactly what the next district needs, such as drink words and 〜をください before the café. Confident players can skip it.
 2. **Quest:** the player uses the new words in the district.
@@ -75,6 +75,43 @@ Players walk between districts until they pass the subway quest, which unlocks f
 - **After the subway quest:** every district has a working station. The player reads the line map, picks a platform and listens for the stop announcement (次は〜です, tsugi wa ... desu).
 - **Mistakes are safe:** taking the wrong train is not a failure. It drops the player at another station, where they can try again or explore.
 - **The map is the same in both views:** the subway line on the city map matches the real tracks in the 3D world.
+
+## Daily routine
+
+The city works as a hub world with a daily routine, like *Stardew Valley* or *Persona*: it feels open and alive, but each day gives the player a few clear things to do. Only a few tasks are required, so the routine never turns into chores.
+
+1. **Actions move time, not a clock.** Each day has three parts: morning (朝, asa), afternoon (昼, hiru) and evening (夜, yoru). Time moves forward when the player finishes that part's main task, so there are still no timers.
+2. **One main task per part of the day.** Main tasks move the story and must be done before the player can sleep.
+3. **Daily tasks are optional.** They appear in the notebook as 今日のやること (kyō no yaru koto, today's to-do), refresh every day, and pay yen and confidence. Skipping them costs nothing.
+4. **The world opens through the story, visibly.** There are no invisible walls: the konbini has its shutter down, the station gates need a ticket. Players always understand why a place is closed.
+5. **The world teaches through time.** Greetings change with the time of day: おはようございます (ohayō gozaimasu) in the morning, こんにちは (konnichiwa) in the afternoon, こんばんは (konbanwa) in the evening. NPCs gently correct the wrong one.
+6. **Sleeping ends the day.** It saves the game and opens the diary, a short review of what the player learned that day.
+7. **One hidden discovery per day.** Something small to find by exploring, such as a sleeping cat, adds a bonus word to the notebook.
+
+## Day 1: 迷子 (Lost)
+
+Day 1 introduces さくら荘 (Sakura-sō), a small guesthouse run by 佐藤さん (Satō-san), an older woman who is Tanaka-sensei's friend. It becomes the player's home and save point.
+
+| Time | Main task | What the player learns |
+| --- | --- | --- |
+| 朝 Morning | Wake up on the bench. Meet Tanaka-sensei, introduce yourself, receive ¥500. | 大丈夫ですか, はじめまして, 〜です |
+| 昼 Afternoon | Take the first lesson, then order a drink at the café. | 〜をください, drinks, ホット / アイス, prices |
+| 夜 Evening | Tanaka gives a card with the guesthouse name in hiragana, さくら. Find the sign on the street, then check in with Satō-san. | Reading hiragana in the real world, reusing はじめまして |
+| Bedtime | Say おやすみなさい (oyasuminasai, good night) to Satō-san, write the diary, and sleep. | おやすみなさい |
+
+**The evening task is the first real reading test.** Finding さくら among real-looking signs is the player's first time reading Japanese in the world, not in a lesson. The afternoon lesson teaches the three hiragana さ, く and ら (the kanji 荘 appears with small hiragana above it), so the player is ready.
+
+**Day 1 daily tasks (optional):**
+
+- **Greet 3 neighbors** with the right greeting for the time of day. Saying こんにちは at night gets a friendly correction: もう こんばんは ですよ (It's already evening!).
+- **Buy a drink from a vending machine,** reading the red あったか〜い and blue つめた〜い labels.
+- **Find the gachapon** near the station and spin once.
+
+**Hidden discovery:** a cat sleeping on a wall behind the café. Tapping it adds ねこ (neko, cat) to the notebook.
+
+**The diary:** at bedtime, the diary shows three sentences about the day with one word missing, and the player picks the right word from the notebook. For example: 今日、カフェで ___ をのみました (Today, I drank ___ at the café). It works as a quick review that feels like a memory, not a test.
+
+**Hook for Day 2:** Satō-san asks the player to buy breakfast at the konbini in the morning, when its shutter goes up. This gives players a reason to start the next day.
 
 ## Gacha system
 
@@ -174,6 +211,8 @@ Speaking is harder than reading or listening, so it is the main way players answ
 **Karaoke booth (classroom):** a カラオケ room with original in-game songs, where players sing along to practice rhythm and pronunciation.
 
 **Helping nervous speakers:** NPCs are patient, with no timers. Players can retry as many times as they like, and speaking answers earn more yen and confidence than tapping.
+
+**Character voices:** spoken lines use Inworld text-to-speech, with one voice per character (Tanaka-sensei: Haruto, café staff: Asuka) and a narrator voice (Jason) for signs, objects and lessons. See Lost Traveler: Game Rules, Voices.
 
 **Tech note:** speech recognition can use the browser's Web Speech API or an open model such as Whisper, both of which support Japanese. The game asks for microphone permission first and does not save recordings.
 

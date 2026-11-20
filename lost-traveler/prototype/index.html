@@ -313,7 +313,7 @@ const I18N = {
     micNote:"要开口回答，请按住粉色说话按钮（或空格键）说出句子。你的声音不会被录下或保存。",
     start:"开始第一天", conf:"自信心", nb:"笔记本", close:"关闭",
     nbEmpty:"学到的单词会出现在这里。",
-    obj_findTanaka:"长椅旁有人在招手。去和她说话吧。",
+    obj_findTanaka:"长椅旁有人在招手。去和他说话吧。",
     obj_goSchool:"跟着田中老师去日语学校。",
     obj_goCafe:"去街对面的咖啡店点一杯饮料。",
     obj_done:"第一天完成！可以四处逛逛，或重新开始。",
@@ -1086,7 +1086,7 @@ let player, tanaka, barista, marker, ring, clickRing, cup;
 function buildPeople(){
   player = character({ body:0x3F6FB5, legs:0x2B2F3A, hair:0x3A2A20, backpack:true });
   player.position.set(-14, 0.18, -4.4); player.rotation.y = 0; scene.add(player);
-  tanaka = character({ body:0x6F9A5C, legs:0x4B4F6B, hair:0x1F1A17, longHair:true, glasses:true });
+  tanaka = character({ body:0x6F9A5C, legs:0x4B4F6B, hair:0x8C8C8C, glasses:true }); // older man: short grey hair, matches Haruto's voice
   tanaka.position.set(-10.6, 0.18, -4.7); tanaka.rotation.y = -Math.PI/2; scene.add(tanaka);
   const tTag = nameTag('田中先生', 'Tanaka-sensei'); tTag.position.y = 2.45; tanaka.add(tTag); W.tTag = tTag;
   barista = character({ body:0xF2EFE8, legs:0x2B2F3A, hair:0x2C2C2C, apron:true, cap:true });

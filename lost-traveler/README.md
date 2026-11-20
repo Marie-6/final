@@ -28,7 +28,9 @@ Serving it on localhost (instead of double-clicking the file) matters: browsers 
 
 **Controls:** WASD or arrow keys to walk (or click the ground). E or the yellow button to talk. Hold the pink button or Space to answer out loud.
 
-**Character voices** use your computer's built-in Japanese voice. On Windows, add Japanese in Settings > Time & language > Speech. On macOS, add a Japanese voice in System Settings > Accessibility > Spoken Content.
+**Character voices** use Inworld text-to-speech: Tanaka-sensei is Haruto, the café staff is Asuka, and the narrator (signs, the vending machine, the lesson) is Jason. To turn them on, copy `prototype/key.example.js` to `prototype/key.js` and paste your Inworld API key into it. `key.js` is in `.gitignore`, so the key never goes to GitHub.
+
+Without a key, the game uses your computer's built-in Japanese voice instead. On Windows, add Japanese in Settings > Time & language > Speech. On macOS, add a Japanese voice in System Settings > Accessibility > Spoken Content.
 
 ## Live version
 

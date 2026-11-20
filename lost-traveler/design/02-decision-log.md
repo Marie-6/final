@@ -85,3 +85,11 @@ How the project got from "I'm out of ideas" to a playable prototype. Each entry 
 - **Considered:** 2D (faster, recommended) vs simple 3D (closer to the vision).
 - **Your choice:** simple 3D.
 - **Why a slice:** test the core loop (learn, use, get rewarded) before investing in six more districts.
+
+## 15. A voice for every character
+
+- **First try:** ElevenLabs, with the British "Daniel" voice for Tanaka-sensei.
+- **Decided:** Inworld text-to-speech (`inworld-tts-2`), which has native Japanese voices: Haruto for Tanaka-sensei, Asuka for the café staff, and Jason as the narrator for signs, objects and the class lesson.
+- **Why:** a native Japanese voice teaches better pronunciation than an English voice reading Japanese, and giving each speaker a different voice (old man, young woman, narrator) lets players tell them apart by sound.
+- **Also decided:** Tanaka-sensei is now a man, to match his voice. Lesson phrases play at 0.8x so learners can follow; conversations stay at normal speed.
+- **Safety:** the API key lives in a private `key.js` that never goes to GitHub, and the built-in voice takes over if anything fails.
