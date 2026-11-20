@@ -260,6 +260,7 @@ input[type=text]{width:100%;font:inherit;font-size:16px;padding:11px 14px;border
 <div id="toasts" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="key.js"></script><!-- private Inworld key, not on GitHub; see key.example.js -->
 <script>
 (function(){
 'use strict';
@@ -416,8 +417,9 @@ function pickVoice(){
 }
 if ('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 /* Inworld voices. Each character in SPEAKERS can have a `voice` (an Inworld voice ID, e.g. 'Haruto').
-   The API key is never stored in this file: open the game once with ?inworld=YOUR_KEY
-   and it is saved in this browser only. Characters without a voice, a missing key, or a
+   The API key is never stored in this file. It comes from key.js (private, in .gitignore;
+   copy key.example.js to make one), or from opening the game once with ?inworld=YOUR_KEY,
+   which saves it in that browser. Characters without a voice, a missing key, or a
    failed request all use the computer's built-in Japanese voice instead. */
 const INWORLD_MODEL = 'inworld-tts-2';
 let ttsKey = '';
@@ -430,6 +432,7 @@ try{
   }
   ttsKey = localStorage.getItem('inworldKey') || '';
 }catch(e){}
+if (window.INWORLD_KEY) ttsKey = window.INWORLD_KEY; // key.js wins, so editing it takes effect right away
 const voiceCache = new Map(); // voice + text -> audio URL, so each line is only paid for once
 let voiceAudio = null, voiceReq = 0;
 function stopVoice(){
