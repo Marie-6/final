@@ -70,21 +70,7 @@ Both tracks share one big challenge: Japanese puts the verb at the end of the se
 
 ## Voices
 
-Spoken lines use Inworld text-to-speech (model `inworld-tts-2`). Each speaker keeps one voice for the whole game, so players can tell who is talking by sound alone.
-
-| Speaker | Inworld voice | Why this voice | Speed |
-| --- | --- | --- | --- |
-| 田中先生 (Tanaka-sensei) | Haruto | Slow, deep, older man: fits a patient teacher | Normal |
-| 店員さん (café staff) | Asuka | Friendly, energetic young woman: fits いらっしゃいませ, and sounds clearly different from Tanaka | Normal |
-| Narrator: signs, objects such as the vending machine, and the class lesson's 🔊 Listen buttons | Jason | Clear, multilingual voice that reads like a guide, not a character | Normal; 0.8x in the class lesson so learners can follow |
-| 佐藤さん (Satō-san), the cat | Not chosen yet | | |
-
-**Voice rules:**
-
-1. **Characters speak in their own voice.** A new character gets its own voice before it gets lines.
-2. **Teaching is slower.** Anything said to teach a phrase (the lesson's 🔊 buttons) plays at 0.8x. Conversations play at normal speed, like real life.
-3. **There is always a voice.** If a speaker has no voice set, the API key is missing, or a request fails, the computer's built-in Japanese voice reads the line instead.
-4. **The API key stays private.** It lives in `prototype/key.js` on the developer's computer, which is never uploaded to GitHub.
+Voices and the voice rules are in [voices.md](voices.md).
 
 ## Look and mood by time of day
 
@@ -97,6 +83,40 @@ The city should feel alive without being a full open world. Lighting and street 
 | 夜 Evening | Orange sunset turning to blue night; signs, lanterns and vending machines glow | Fewer people | Quiet, distant train, the vending machine hum |
 
 Visual upgrades, in order of impact: time-of-day lighting, glowing signs at night, people and bicycles moving on the street, and a train crossing an elevated track.
+
+## Art direction: anime cel-shaded
+
+The game uses a bright anime cel-shaded style, in the spirit of *Genshin Impact*, *Persona* and the towns in Studio Ghibli films. It fits a Japan-themed game, and its clean shapes keep signs and text easy to read.
+
+- **Readability first:** Japanese text on signs and menus must always be easy to read, at every time of day.
+- **Shading:** toon shading with two or three tone steps and soft outlines, not realistic shading.
+- **Colors:** bright and warm, never neon-harsh. Key colors are sky blue, sakura pink, warm wood brown, and the signature colors of shop signs.
+- **Characters:** anime proportions (not chibi), with expressive faces. Each NPC has at least four expressions: neutral, happy, confused and surprised, used by the manga reactions.
+- **Animation:** natural movement for walking, idling, waving, bowing and talking, plus small idle loops so nobody stands frozen.
+- **Environment:** a real Tokyo-style street full of everyday clutter: shop signs, power lines, bicycles, potted plants, noren curtains and vending machines.
+- **Polish:** color grading for each time of day, bloom on glowing signs at night, soft depth of field during conversations, and ambient city sound.
+
+**Scope:** build one street at full quality first (the station, the café, the school and さくら荘), playing all of Day 1. This vertical slice shows exactly how the finished game will look.
+
+**Tools:**
+
+| Need | Tool |
+| --- | --- |
+| Engine and toon shading | Unity (URP) |
+| Anime characters, including player customization | VRoid Studio (free) |
+| Character animations | Mixamo (free) |
+| City buildings and props | A Japanese street asset pack, restyled with the toon shader |
+
+## Interaction design
+
+Every interaction gives clear feedback and helps the player learn. One rule ties them together: **every reaction is fast and skippable,** so nothing makes the player wait, even after their tenth conversation.
+
+1. **Conversation camera.** When a conversation starts, the camera eases in to frame the player and the NPC, and the rest of the screen dims slightly. When it ends, the camera pulls back. This signals focus mode without a menu popping up.
+2. **Manga reactions.** NPCs react above their heads: ? when confused, a sweat drop 💧 after a funny mistake, ✨ for a right answer, ♪ when happy. These show how an answer landed without any "wrong" screen.
+3. **Live microphone feedback.** While the player holds the speak button, a volume bar moves with their voice. The words the game hears appear as they talk, and words that match the answer turn green. If nothing matches, the closest option glows softly as a hint.
+4. **Tappable signs.** Any sign in the world can be tapped to show its furigana, its meaning in the help language, and a button to save it to the notebook. Saved signs count as collectibles, so there is always something to read on a walk.
+5. **The notebook (手帳, techō).** The player's phone is lost, so every menu lives in a handwritten notebook: today's to-do, words, the stamp book, saved signs, and a hand-drawn map that fills in as new places are visited.
+6. **Satisfying feedback.** Stamps land with a "pon" sound, coins fly to the yen counter, and new words float into the notebook. Small, quick, and never in the way.
 
 ## Game-wide decisions
 

@@ -212,7 +212,7 @@ Speaking is harder than reading or listening, so it is the main way players answ
 
 **Helping nervous speakers:** NPCs are patient, with no timers. Players can retry as many times as they like, and speaking answers earn more yen and confidence than tapping.
 
-**Character voices:** spoken lines use Inworld text-to-speech, with one voice per character (Tanaka-sensei: Haruto, café staff: Asuka) and a narrator voice (Jason) for signs, objects and lessons. See Lost Traveler: Game Rules, Voices.
+**Character voices:** spoken lines use Inworld text-to-speech, with one voice per character (Tanaka-sensei: Haruto, café staff: Asuka) and a narrator voice (Jason) for signs, objects and lessons. See [voices.md](voices.md).
 
 **Tech note:** speech recognition can use the browser's Web Speech API or an open model such as Whisper, both of which support Japanese. The game asks for microphone permission first and does not save recordings.
 
