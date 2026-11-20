@@ -415,14 +415,66 @@ function pickVoice(){
   jaVoice = vs.find(v => /^ja/i.test(v.lang)) || null;
 }
 if ('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function say(text, force){
-  if ((!G.voice && !force) || !('speechSynthesis' in window)) return;
+/* Inworld voices. Each character in SPEAKERS can have a `voice` (an Inworld voice ID, e.g. 'Haruto').
+   The API key is never stored in this file: open the game once with ?inworld=YOUR_KEY
+   and it is saved in this browser only. Characters without a voice, a missing key, or a
+   failed request all use the computer's built-in Japanese voice instead. */
+const INWORLD_MODEL = 'inworld-tts-2';
+let ttsKey = '';
+try{
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('inworld')){
+    localStorage.setItem('inworldKey', qs.get('inworld'));
+    qs.delete('inworld');
+    history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : '') + location.hash);
+  }
+  ttsKey = localStorage.getItem('inworldKey') || '';
+}catch(e){}
+const voiceCache = new Map(); // voice + text -> audio URL, so each line is only paid for once
+let voiceAudio = null, voiceReq = 0;
+function stopVoice(){
+  voiceReq++;
+  if (voiceAudio){ voiceAudio.pause(); voiceAudio = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+function sayBuiltIn(text){
+  if (!('speechSynthesis' in window)) return;
   try{
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).replace(/[〜~]/g,''));
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP'; if (jaVoice) u.voice = jaVoice; u.rate = 0.9;
     speechSynthesis.speak(u);
   }catch(e){}
+}
+async function sayInworld(text, voiceId, req, rate){
+  const key = voiceId + '|' + rate + '|' + text;
+  let url = voiceCache.get(key);
+  if (!url){
+    const r = await fetch('https://api.inworld.ai/tts/v1/voice', {
+      method:'POST',
+      headers:{ 'Authorization': 'Basic ' + ttsKey, 'Content-Type':'application/json' },
+      body: JSON.stringify({ text, voiceId, modelId:INWORLD_MODEL, audioConfig:{ audioEncoding:'MP3', speakingRate:rate } })
+    });
+    if (!r.ok) throw new Error('Inworld ' + r.status);
+    const { audioContent } = await r.json();
+    url = 'data:audio/mpeg;base64,' + audioContent;
+    voiceCache.set(key, url);
+  }
+  if (req !== voiceReq) return; // something else started or stopped speech meanwhile
+  voiceAudio = new Audio(url);
+  await voiceAudio.play();
+}
+const NARRATOR_VOICE = 'Jason'; // Inworld: multilingual male narrator, for asides (signs, vending machine) and the class lesson's Listen buttons
+const LESSON_RATE = 0.8; // class lesson Listen buttons speak slower so learners can follow
+// who: a SPEAKERS key ('tanaka', 'barista'), or nothing for narration/signs
+// rate: speaking speed for Inworld voices (1 = normal)
+function say(text, force, who, rate = 1){
+  if (!G.voice && !force) return;
+  stopVoice();
+  const clean = String(text).replace(/[〜~]/g,'');
+  const voiceId = who ? (SPEAKERS[who] && SPEAKERS[who].voice) : NARRATOR_VOICE;
+  if (!ttsKey || !voiceId){ sayBuiltIn(clean); return; }
+  const req = voiceReq;
+  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean); });
 }
 
 /* ---------- Voice in (speech recognition) ---------- */
@@ -482,7 +534,7 @@ function micBegin(){
   try{ rec.start(); }catch(e){ micStatus(t('micBlocked')); return; }
   Mic.rec = rec; Mic.listening = true;
   b.btn.classList.add('on'); micStatus(t('listening'));
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  stopVoice();
 }
 function micEnd(){
   if (Mic.listening && Mic.rec){ try{ Mic.rec.stop(); }catch(e){} }
@@ -498,8 +550,8 @@ function matchOption(alts, opts){
 
 /* ---------- Dialogue scripts ---------- */
 const SPEAKERS = {
-  tanaka:{jp:'田中先生', sub:{en:'Tanaka-sensei', zh:'田中老师'}},
-  barista:{jp:'店員さん', sub:{en:'Café staff', zh:'店员'}}
+  tanaka:{jp:'田中先生', sub:{en:'Tanaka-sensei', zh:'田中老师'}, voice:'Haruto'}, // Inworld: slow, deep older man
+  barista:{jp:'店員さん', sub:{en:'Café staff', zh:'店员'}, voice:'Asuka'} // Inworld: friendly young woman
 };
 const TANAKA = {
   t1:{who:'tanaka', jp:'あの…大丈夫ですか？', r:'Ano… daijōbu desu ka?', en:'Um… are you okay?', zh:'那个……你还好吗？', words:['daijobu'], options:[
@@ -564,7 +616,7 @@ function showNode(id){
   if (n.falseFriend && lang === 'zh') toast('⚠ ' + t('ffTitle') + '：先生。' + t('ffNote'), 'warn');
   $('#dFb').hidden = true;
   renderNode();
-  say(val(n.jp));
+  say(val(n.jp), false, n.who);
 }
 function renderNode(){
   const n = D.nodes[D.id]; if (!n) return;
@@ -615,7 +667,7 @@ function showFeedback(w){
   const b = document.createElement('div'); b.className='fb-ro'; b.textContent = w.r;
   const c = document.createElement('div'); c.textContent = tr(w.note);
   fb.append(a, b, c);
-  say(w.jp);
+  say(w.jp, false, n.who);
 }
 function choose(o, spoken, btn){
   if (D.busy) return;
@@ -641,7 +693,7 @@ $('#dNext').onclick = () => {
   if (n.next) showNode(n.next); else endDialog(n.end);
 };
 $('#dHint').onclick = () => { D.hint = true; renderNode(); };
-$('#dListen').onclick = () => { const n = D.nodes && D.nodes[D.id]; if (n) say(val(n.jp), true); };
+$('#dListen').onclick = () => { const n = D.nodes && D.nodes[D.id]; if (n) say(val(n.jp), true, n.who); };
 
 /* ---------- Lesson ---------- */
 const LESSON = [
@@ -684,7 +736,7 @@ function renderLesson(){
       const m = document.createElement('div'); m.className='l-tr'; m.textContent = lang === 'zh' ? it.zh : it.en;
       left.append(j, r, m);
       const b = document.createElement('button'); b.className='chalk-btn'; b.textContent = '🔊 ' + t('listen');
-      b.onclick = () => say(it.jp, true);
+      b.onclick = () => say(it.jp, true, null, LESSON_RATE); // lesson examples: narrator (Jason), slower
       row.append(left, b); body.appendChild(row);
     });
     const n = document.createElement('div'); n.className='l-note'; n.textContent = tr(c.note); body.appendChild(n);
@@ -695,7 +747,7 @@ function renderLesson(){
     const j = document.createElement('span'); j.className='l-jp big'; j.lang='ja'; j.textContent='コーヒーをください。';
     const r = document.createElement('div'); r.className='l-ro'; r.textContent='Kōhī o kudasai.';
     const lb = document.createElement('button'); lb.className='chalk-btn'; lb.style.margin='10px 0'; lb.textContent='🔊 ' + t('listen');
-    lb.onclick = () => say('コーヒーをください', true);
+    lb.onclick = () => say('コーヒーをください', true, null, LESSON_RATE); // narrator (Jason), slower
     const sp = document.createElement('div'); sp.className='speak';
     const mic = document.createElement('button'); mic.className='mic';
     const dot = document.createElement('span'); dot.className='mic-dot';
@@ -760,7 +812,7 @@ document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { lang =
 $('#voiceBtn').onclick = () => {
   G.voice = !G.voice; $('#voiceBtn').setAttribute('aria-pressed', String(G.voice));
   $('#voiceBtn').textContent = G.voice ? '🔊' : '🔈';
-  if (!G.voice && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if (!G.voice) stopVoice();
 };
 $('#nbBtn').onclick = () => { $('#notebook').hidden = false; renderNotebook(); };
 $('#nbClose').onclick = () => { $('#notebook').hidden = true; };
@@ -1067,8 +1119,8 @@ function candidates(){
   if (p === 'goSchool') list.push({ key:'door', pos:doorPos, r:2.3, label:t('enterSchool'), act:openLesson });
   if (p === 'goCafe') list.push({ key:'barista', pos:cafeSpot, r:2.2, label:t('talkBarista'), act:() => openDialog(CAFE, 'c1', onCafeEnd) });
   if (p === 'done'){
-    list.push({ key:'tanaka', pos:tanaka.position, r:2.4, label:t('chatTanaka'), act:() => { toast(t('doneTanaka')); say('おつかれさま'); } });
-    list.push({ key:'barista', pos:cafeSpot, r:2.2, label:t('chatBarista'), act:() => { toast(t('doneBarista')); say('またどうぞ'); } });
+    list.push({ key:'tanaka', pos:tanaka.position, r:2.4, label:t('chatTanaka'), act:() => { toast(t('doneTanaka')); say('おつかれさま', false, 'tanaka'); } });
+    list.push({ key:'barista', pos:cafeSpot, r:2.2, label:t('chatBarista'), act:() => { toast(t('doneBarista')); say('またどうぞ', false, 'barista'); } });
   }
   list.push({ key:'vending', pos:new THREE.Vector3(9.6, 0, -5.2), r:1.7, label:t('lookVending'), act:() => { toast(t('vendingNote')); say('自動販売機'); } });
   return list;
