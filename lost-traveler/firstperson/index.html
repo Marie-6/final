@@ -42,6 +42,25 @@ kbd{font-family:inherit;background:var(--sign);color:var(--navy);border-radius:5
 .move{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 64px);z-index:3;display:none;flex-direction:column;gap:8px}
 .move button{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--navy);font-size:22px;font-weight:900;box-shadow:0 4px 14px rgba(16,24,42,.3)}
 @media (pointer:coarse){.move{display:flex}.help .keys{display:none}}
+#vend{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100% - 24px));max-height:calc(100% - 40px);overflow:auto;background:var(--navy);color:var(--sign);border-radius:16px;box-shadow:0 14px 40px rgba(10,16,30,.5);display:none;padding:14px 16px 16px}
+#vend .vh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#vend .vh ruby{font-size:26px;font-weight:900;line-height:1.5}
+#vend .vh rt{font-size:11px;color:var(--sign-dim)}
+#vend .sub{color:var(--sign-dim);font-size:13px;margin:0}
+#vend .vx{background:var(--sign);color:var(--navy);border-radius:999px;padding:6px 14px;font-weight:700;font-size:14px;flex:none}
+#vend .vg{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px;margin-top:12px}
+#vend .it{background:linear-gradient(#FFFFFF,#E9EFF5);color:var(--ink);border-radius:12px;padding:8px 6px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+#vend .it:hover,#vend .it:focus-visible{outline:3px solid var(--amber)}
+#vend .it img{height:100px;width:auto}
+#vend .it ruby{font-size:15px;font-weight:900;line-height:1.6}
+#vend .it rt{font-size:9px;color:var(--muted)}
+#vend .it .en{font-size:11px;color:var(--muted);line-height:1.2;text-align:center}
+#vend .it .pr{white-space:nowrap;display:flex;gap:4px;align-items:center;font-size:13px;font-weight:900}
+#vend .tag{white-space:nowrap;font-size:10px;font-weight:700;color:#fff;border-radius:5px;padding:1px 5px}
+#vend .cold{background:#2F6FB8} #vend .hot{background:#D8433F}
+#vend .num{position:absolute;top:5px;left:8px;font-size:11px;font-weight:700;color:var(--muted)}
+#toast{position:fixed;z-index:4;left:50%;top:22%;transform:translateX(-50%);background:var(--navy);color:var(--sign);border-radius:999px;padding:8px 18px;font-weight:700;font-size:17px;box-shadow:0 6px 18px rgba(16,24,42,.3);display:none;white-space:nowrap}
+#toast rt{font-size:10px;color:var(--sign-dim)}
 #seat{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 64px);z-index:3;display:none;background:var(--amber);color:var(--navy);border:0;border-radius:999px;padding:8px 18px;font:700 16px var(--font);box-shadow:0 6px 18px rgba(16,24,42,.3);cursor:pointer}
 #seat rt{font-size:10px}
 #seat kbd{background:var(--navy);color:var(--sign);margin-right:6px}
@@ -69,6 +88,11 @@ body.shot .hud,body.shot .help,body.shot .move{display:none}
 <div class="help"><span class="keys"><span class="free">Click to look around · </span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · <kbd>Shift</kbd> run · <span class="lockedtip">click a sign to read it · <kbd>Esc</kbd> frees the mouse</span></span><span class="touch">drag to look · tap a sign to read it</span></div>
 <div id="dot" aria-hidden="true"></div>
 <button id="seat" type="button"></button>
+<div id="toast" aria-live="polite"></div>
+<div id="vend" role="dialog" aria-label="Vending machine">
+  <div class="vh"><div><div id="vendJp"></div><p class="sub" id="vendSub"></p></div><button class="vx" id="vendClose">やめる ✕</button></div>
+  <div class="vg" id="vendGrid"></div>
+</div>
 <div class="move"><button id="fwd" aria-label="Walk forward">▲</button><button id="back" aria-label="Walk back">▼</button></div>
 
 <div id="card" role="dialog" aria-label="Sign">
@@ -1020,9 +1044,177 @@ function plantPot(x, y, z, s = 1) {
 }
 function plantCluster(side, z) {
   if (!claim(side, 'wall', z - .8, z + .8)) return;
-  for (let i = 0; i < 4; i++) plantPot(side * range(5.35, 5.75), .15, z + range(-.6, .6), range(.8, 1.3));
+  // a neat row: each pot gets room for its leaves (about .3 m per unit of scale), staggered a little front-to-back
+  const sizes = []; let total = 0;
+  for (let i = 0; i < 4; i++) { const sc = range(.8, 1.15), w = .62 * sc + .06; if (total + w > 1.6) break; sizes.push([sc, w]); total += w; }
+  let zz = z - total / 2;
+  sizes.forEach(([sc, w], i) => { plantPot(side * (i % 2 ? 5.68 : 5.45), .15, zz + w / 2, sc); zz += w; });
 }
 
+// ---------------------------------------------------------------- vending machine drinks (original designs)
+const DRINKS = {
+  ryokucha: { r: [['緑茶', 'りょくちゃ']], ro: 'ryokucha', en: 'Green tea', zh: '绿茶', price: 150, shape: 'pet', liquid: '#B5C25A', cap: '#2E7D46', label: '#F6F3E2', ink: '#2E6B3A', motif: 'leaf', short: '緑茶' },
+  mugicha: { r: [['麦茶', 'むぎちゃ']], ro: 'mugicha', en: 'Barley tea', zh: '麦茶', price: 130, shape: 'pet', liquid: '#A8662A', cap: '#C8862E', label: '#FFF4D6', ink: '#8A4A1A', motif: 'grain', short: '麦茶' },
+  mizu: { r: [['天然水', 'てんねんすい']], ro: 'tennensui', en: 'Mineral water', zh: '矿泉水', price: 110, shape: 'pet', liquid: '#D6ECF7', clear: true, cap: '#2F6FB8', label: '#E6F3FB', ink: '#2F6FB8', motif: 'mountain', short: '天然水' },
+  supootsu: { r: [['スポーツドリンク', '']], ro: 'supōtsu dorinku', en: 'Sports drink', zh: '运动饮料', price: 150, shape: 'pet', liquid: '#E2EEF8', clear: true, cap: '#1F5FB0', label: '#2F6FB8', ink: '#FFFFFF', motif: 'wave', short: 'ION' },
+  orenji: { r: [['オレンジ', '']], ro: 'orenji', en: 'Orange juice', zh: '橙汁', price: 150, shape: 'pet', liquid: '#F5A020', cap: '#F07C14', label: '#FFE7A0', ink: '#D2601A', motif: 'orange', face: true, short: 'オレンジ' },
+  yuzu: { r: [['ゆずソーダ', '']], ro: 'yuzu sōda', en: 'Yuzu soda', zh: '柚子汽水', price: 150, shape: 'pet', liquid: '#F2E07A', cap: '#E2B41C', label: '#FFFFFF', ink: '#3C8F4A', motif: 'citrus', face: true, short: 'ゆず' },
+  ramune: { r: [['ラムネ', '']], ro: 'ramune', en: 'Ramune soda', zh: '波子汽水', price: 160, shape: 'glass', liquid: '#8CD6E8', cap: '#E8527A', label: '#FFFFFF', ink: '#2F6FB8', motif: 'bubbles', short: 'ラムネ' },
+  koohii: { r: [['コーヒー', '']], ro: 'kōhī', en: 'Canned coffee', zh: '罐装咖啡', price: 130, shape: 'can', body: '#1D2B5A', ink: '#E2C08A', motif: 'bean', short: 'COFFEE' },
+  kafeore: { r: [['カフェオレ', '']], ro: 'kafeore', en: 'Café au lait', zh: '咖啡欧蕾', price: 130, shape: 'can', body: '#E9D3B0', ink: '#6A4028', motif: 'cup', short: 'カフェオレ' },
+  miruku: { r: [['ミルクティー', '']], ro: 'miruku tī', en: 'Milk tea', zh: '奶茶', price: 150, shape: 'tall', body: '#F3ECDC', ink: '#8A2A3A', motif: 'teapot', short: 'TEA' },
+  ringo: { r: [['りんご', '']], ro: 'ringo', en: 'Apple juice', zh: '苹果汁', price: 150, shape: 'can', body: '#D9443F', ink: '#FFFFFF', motif: 'apple', face: true, short: 'りんご' },
+  meron: { r: [['メロンソーダ', '']], ro: 'meron sōda', en: 'Melon soda', zh: '蜜瓜汽水', price: 130, shape: 'can', body: '#4FB060', ink: '#FFFFFF', motif: 'melon', face: true, short: 'メロン' },
+  kokoa: { r: [['ココア', '']], ro: 'kokoa', en: 'Hot cocoa', zh: '热可可', price: 130, shape: 'can', body: '#6A3A28', ink: '#FFD9B0', motif: 'heart', short: 'ココア' },
+  koon: { r: [['コーンスープ', '']], ro: 'kōn sūpu', en: 'Corn soup', zh: '玉米浓汤', price: 130, shape: 'can', body: '#F2C230', ink: '#7A4A10', motif: 'corn', short: 'コーン' },
+  gyuunyuu: { r: [['牛乳', 'ぎゅうにゅう']], ro: 'gyūnyū', en: 'Milk', zh: '牛奶', price: 120, shape: 'carton', body: '#FFFFFF', band: '#3E8EDB', ink: '#2F6FB8', motif: 'cow', face: true, short: '牛乳' },
+  ichigo: { r: [['いちご', ''], ['牛乳', 'ぎゅうにゅう']], ro: 'ichigo gyūnyū', en: 'Strawberry milk', zh: '草莓牛奶', price: 120, shape: 'carton', body: '#FBE0E8', band: '#E8527A', ink: '#C8325A', motif: 'strawberry', face: true, short: 'いちご' },
+  nyuusan: { r: [['乳酸菌', 'にゅうさんきん']], ro: 'nyūsankin', en: 'Yogurt drink', zh: '乳酸菌饮料', price: 100, shape: 'small', body: '#FCE7C4', cap: '#E8524A', ink: '#E8524A', motif: 'heart', short: '乳酸菌' },
+};
+const DRINK_SHAPES = { pet: { w: .36, h: 1 }, glass: { w: .32, h: .95 }, can: { w: .34, h: .6 }, tall: { w: .32, h: .74 }, carton: { w: .38, h: .7 }, small: { w: .26, h: .5 } };
+// what each kind of machine stocks, row by row (the bottom row is hot)
+const VEND_ROWS = {
+  drinks: [['koohii', 'kafeore', 'meron', 'ringo', 'miruku', 'ringo'], ['ryokucha', 'mugicha', 'mizu', 'supootsu', 'orenji', 'yuzu'], ['ramune', 'mizu', 'ryokucha', 'nyuusan', 'orenji', 'supootsu'], ['koohii', 'kokoa', 'koon', 'miruku', 'kafeore']],
+  milk: [['gyuunyuu', 'ichigo', 'gyuunyuu', 'kafeore'], ['nyuusan', 'ichigo', 'gyuunyuu', 'miruku'], ['ryokucha', 'mizu', 'orenji', 'yuzu'], ['kokoa', 'miruku', 'koon', 'kafeore']],
+  coffee: [['koohii', 'kafeore', 'koohii', 'miruku'], ['ryokucha', 'mugicha', 'mizu', 'koohii'], ['kafeore', 'supootsu', 'ramune', 'ringo'], ['koohii', 'kafeore', 'kokoa', 'koon']],
+};
+// little original label pictures; some get a cute face
+function drinkMotif(g, kind, x, y, r, face) {
+  const C = (c, cx, cy, rr) => { g.fillStyle = c; g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.fill(); };
+  const E = (c, cx, cy, rx, ry, rot = 0) => { g.fillStyle = c; g.beginPath(); g.ellipse(cx, cy, rx, ry, rot, 0, 7); g.fill(); };
+  g.save(); g.lineCap = 'round';
+  if (kind === 'leaf') { E('#4E9F45', x - r * .25, y, r * .5, r * .9, -.5); E('#7CC35A', x + r * .3, y + r * .1, r * .45, r * .8, .5); }
+  else if (kind === 'grain') { for (let i = 0; i < 3; i++) E('#D8A048', x + (i - 1) * r * .5, y + Math.abs(i - 1) * r * .2, r * .25, r * .55, (i - 1) * .4); }
+  else if (kind === 'mountain') { g.fillStyle = '#5B9BD5'; g.beginPath(); g.moveTo(x - r, y + r * .6); g.lineTo(x - r * .2, y - r * .7); g.lineTo(x + r * .3, y); g.lineTo(x + r * .55, y - r * .35); g.lineTo(x + r, y + r * .6); g.fill(); g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(x - r * .45, y - r * .35); g.lineTo(x - r * .2, y - r * .7); g.lineTo(x + .05 * r, y - r * .35); g.fill(); }
+  else if (kind === 'wave') { g.strokeStyle = '#FFFFFF'; g.lineWidth = r * .22; g.beginPath(); for (let i = 0; i <= 12; i++) { const xx = x - r + i * r / 6; g[i ? 'lineTo' : 'moveTo'](xx, y + Math.sin(i * .9) * r * .3); } g.stroke(); C('#9FD3F4', x, y - r * .55, r * .22); }
+  else if (kind === 'orange') { C('#F28C1A', x, y, r); C('#F7B04A', x - r * .3, y - r * .3, r * .3); E('#3C9D5D', x + r * .3, y - r * .95, r * .35, r * .18, -.4); }
+  else if (kind === 'citrus') { C('#F2D232', x, y, r); C('#FFF2A0', x, y, r * .78); g.strokeStyle = '#F2D232'; g.lineWidth = r * .1; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(i * 1.047) * r * .78, y + Math.sin(i * 1.047) * r * .78); g.stroke(); } }
+  else if (kind === 'apple') { C('#E8433A', x - r * .35, y, r * .7); C('#E8433A', x + r * .35, y, r * .7); C('#E8433A', x, y + r * .25, r * .75); g.strokeStyle = '#6A4028'; g.lineWidth = r * .12; g.beginPath(); g.moveTo(x, y - r * .5); g.lineTo(x + r * .1, y - r * .95); g.stroke(); E('#4E9F45', x + r * .4, y - r * .8, r * .3, r * .14, -.4); }
+  else if (kind === 'melon') { C('#8FCF6A', x, y, r); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = r * .08; for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(x + i * r * .5 - r * .4, y - r * .8); g.lineTo(x + i * r * .5 + r * .4, y + r * .8); g.stroke(); g.beginPath(); g.moveTo(x + i * r * .5 + r * .4, y - r * .8); g.lineTo(x + i * r * .5 - r * .4, y + r * .8); g.stroke(); } }
+  else if (kind === 'bubbles') { for (const [a, b, c] of [[-.4, .3, .35], [.35, -.1, .28], [-.1, -.5, .2], [.45, .55, .18], [-.55, -.35, .14]]) { g.strokeStyle = '#5BB8D8'; g.lineWidth = r * .1; g.beginPath(); g.arc(x + a * r, y + b * r, c * r, 0, 7); g.stroke(); } }
+  else if (kind === 'bean') { E('#8A5A3A', x - r * .35, y, r * .45, r * .65, .4); E('#A8784A', x + r * .4, y + r * .1, r * .45, r * .65, -.3); g.strokeStyle = '#3A2418'; g.lineWidth = r * .08; g.beginPath(); g.moveTo(x - r * .5, y - r * .45); g.quadraticCurveTo(x - r * .2, y, x - r * .45, y + r * .5); g.stroke(); }
+  else if (kind === 'cup') { g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(x - r * .7, y - r * .3); g.lineTo(x + r * .5, y - r * .3); g.lineTo(x + r * .35, y + r * .6); g.lineTo(x - r * .55, y + r * .6); g.fill(); g.strokeStyle = '#FFFFFF'; g.lineWidth = r * .14; g.beginPath(); g.arc(x + r * .6, y, r * .25, -1.5, 1.5); g.stroke(); E('#8A5A3A', x - r * .1, y - r * .3, r * .58, r * .12); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = r * .08; for (const dx of [-.3, .1]) { g.beginPath(); g.moveTo(x + dx * r, y - r * .5); g.quadraticCurveTo(x + (dx + .15) * r, y - r * .75, x + dx * r, y - r); g.stroke(); } }
+  else if (kind === 'teapot') { C('#C8505A', x, y + r * .15, r * .6); E('#C8505A', x, y - r * .45, r * .3, r * .1); C('#C8505A', x, y - r * .6, r * .1); g.strokeStyle = '#C8505A'; g.lineWidth = r * .16; g.beginPath(); g.moveTo(x + r * .5, y + r * .1); g.lineTo(x + r * .95, y - r * .3); g.stroke(); g.beginPath(); g.arc(x - r * .65, y + r * .15, r * .28, 1.6, 4.7); g.stroke(); }
+  else if (kind === 'heart') { g.fillStyle = '#F06A8A'; g.beginPath(); g.moveTo(x, y + r * .8); g.bezierCurveTo(x - r * 1.2, y - r * .1, x - r * .5, y - r * .9, x, y - r * .35); g.bezierCurveTo(x + r * .5, y - r * .9, x + r * 1.2, y - r * .1, x, y + r * .8); g.fill(); }
+  else if (kind === 'corn') { E('#F7D54A', x, y, r * .45, r * .9); g.fillStyle = '#E8B820'; for (let i = -3; i <= 3; i++) for (const dx of [-.15, .15]) C('#E8B820', x + dx * r, y + i * r * .22, r * .07); E('#5CA84A', x - r * .35, y + r * .3, r * .2, r * .6, .4); E('#5CA84A', x + r * .35, y + r * .3, r * .2, r * .6, -.4); }
+  else if (kind === 'cow') { C('#FFFFFF', x, y, r); C('#2B2D33', x - r * .45, y - r * .3, r * .3); C('#2B2D33', x + r * .5, y + r * .35, r * .22); E('#F4B8C0', x, y + r * .45, r * .45, r * .28); }
+  else if (kind === 'strawberry') { g.fillStyle = '#E8433A'; g.beginPath(); g.moveTo(x - r * .8, y - r * .4); g.quadraticCurveTo(x, y - r * .8, x + r * .8, y - r * .4); g.quadraticCurveTo(x + r * .6, y + r * .5, x, y + r); g.quadraticCurveTo(x - r * .6, y + r * .5, x - r * .8, y - r * .4); g.fill(); E('#4E9F45', x, y - r * .6, r * .5, r * .16); for (const [a, b] of [[-.4, -.1], [.4, -.1], [0, .1], [-.2, .45], [.2, .45]]) E('#FFE08A', x + a * r, y + b * r, r * .05, r * .08); }
+  if (face) {                                                    // a little face
+    C('#2B2D33', x - r * .3, y + r * .05, r * .09); C('#2B2D33', x + r * .3, y + r * .05, r * .09);
+    g.strokeStyle = '#2B2D33'; g.lineWidth = r * .08; g.beginPath(); g.arc(x, y + r * .15, r * .18, .3, Math.PI - .3); g.stroke();
+    C('rgba(255,120,140,.55)', x - r * .55, y + r * .3, r * .12); C('rgba(255,120,140,.55)', x + r * .55, y + r * .3, r * .12);
+  }
+  g.restore();
+}
+// draw a drink standing at (cx, by), s pixels tall for a 1-unit (bottle-height) drink
+function drawDrink(g, d, cx, by, s) {
+  const S = DRINK_SHAPES[d.shape], w = S.w, h = S.h;
+  g.save(); g.translate(cx, by); g.scale(s, s);
+  const txt = (t, x, y, size, color, weight = 900) => {
+    g.save(); g.scale(1 / s, 1 / s); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `${weight} ${size * s}px "Zen Maru Gothic"`; const tw = g.measureText(t).width; if (tw > w * .9 * s) g.font = `${weight} ${size * s * w * .9 * s / tw}px "Zen Maru Gothic"`;
+    g.fillText(t, x * s, y * s); g.restore();
+  };
+  const hGrad = (c, x0, x1, a = .7, b = 1.12) => { const gr = g.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, shade(c, a)); gr.addColorStop(.28, shade(c, b)); gr.addColorStop(.6, c); gr.addColorStop(1, shade(c, a * .85)); return gr; };
+  const silver = (x, y, ww, hh) => { g.fillStyle = hGrad('#C9CDD3', x, x + ww, .65, 1.2); g.fillRect(x, y, ww, hh); };
+  const shine = (x, y, hh) => { g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(x, y, w * .07, hh); g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(x + w * .1, y, w * .03, hh); };
+  if (d.shape === 'can' || d.shape === 'tall') {
+    g.fillStyle = hGrad(d.body, -w / 2, w / 2); g.beginPath(); g.roundRect(-w / 2, -h + .03, w, h - .05, .02); g.fill();
+    silver(-w / 2 + .015, -h, w - .03, .045); silver(-w / 2 + .02, -.035, w - .04, .035);
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-w / 2 + .03, -h + .045, w - .06, .01);
+    g.fillStyle = shade(d.body, .8); g.fillRect(-w / 2, -h * .2, w, h * .06);
+    drinkMotif(g, d.motif, 0, -h * .5, w * .3, d.face);
+    txt(d.short, 0, -h * .82, .075, d.ink); txt('¥' + d.price, 0, -h * .12, .05, d.ink, 700);
+    shine(-w / 2 + .05, -h + .06, h - .12);
+  } else if (d.shape === 'pet' || d.shape === 'glass') {
+    const glass = d.shape === 'glass', nw = glass ? .08 : .065, sh = glass ? -.6 : -.7;
+    const body = () => { g.beginPath(); g.moveTo(-nw, -h + .1); g.lineTo(-nw, -h + .16);
+      if (glass) { g.quadraticCurveTo(-nw - .07, -h + .25, -nw + .01, -h + .33); g.quadraticCurveTo(-w / 2, sh + .05, -w / 2, sh + .2); }
+      else g.quadraticCurveTo(-w / 2, -h + .2, -w / 2, sh);
+      g.lineTo(-w / 2, -.04); g.quadraticCurveTo(-w / 2, 0, -w / 2 + .04, 0); g.lineTo(w / 2 - .04, 0); g.quadraticCurveTo(w / 2, 0, w / 2, -.04);
+      if (glass) { g.lineTo(w / 2, sh + .2); g.quadraticCurveTo(w / 2, sh + .05, nw - .01, -h + .33); g.quadraticCurveTo(nw + .07, -h + .25, nw, -h + .16); }
+      else { g.lineTo(w / 2, sh); g.quadraticCurveTo(w / 2, -h + .2, nw, -h + .16); }
+      g.lineTo(nw, -h + .1); g.closePath(); };
+    body(); g.fillStyle = glass ? 'rgba(200,236,246,.85)' : 'rgba(236,244,248,.9)'; g.fill();
+    g.save(); body(); g.clip();
+    g.fillStyle = hGrad(d.liquid, -w / 2, w / 2, d.clear ? .92 : .75, d.clear ? 1.05 : 1.15); g.globalAlpha = d.clear ? .7 : .95; g.fillRect(-w / 2, glass ? -h + .3 : -h + .22, w, h); g.globalAlpha = 1;
+    if (!glass) { g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = .008; for (const yy of [-.08, -.14, -.2]) { g.beginPath(); g.moveTo(-w / 2, yy); g.lineTo(w / 2, yy); g.stroke(); } }
+    g.restore();
+    body(); g.strokeStyle = 'rgba(80,100,120,.35)'; g.lineWidth = .01; g.stroke();
+    g.fillStyle = hGrad(d.cap, -nw - .01, nw + .01); g.beginPath(); g.roundRect(-nw - .012, -h, 2 * nw + .024, .1, .015); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.18)'; for (let i = 0; i < 4; i++) g.fillRect(-nw + i * nw * .5, -h + .015, .006, .07);
+    if (glass) { g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(0, -h + .26, .055, 0, 7); g.fill(); g.fillStyle = 'rgba(120,200,230,.6)'; g.beginPath(); g.arc(.015, -h + .27, .035, 0, 7); g.fill(); }
+    const ly = glass ? -h * .48 : -h * .56, lh = glass ? .26 : .32;
+    g.fillStyle = hGrad(d.label, -w / 2, w / 2, .8, 1.05); g.fillRect(-w / 2, ly, w, lh);
+    g.fillStyle = d.ink; g.fillRect(-w / 2, ly, w, .025); g.fillRect(-w / 2, ly + lh - .025, w, .025);
+    drinkMotif(g, d.motif, 0, ly + lh * .4, w * .2, d.face);
+    txt(d.short, 0, ly + lh * .8, .06, d.ink);
+    shine(-w / 2 + .04, -h + .3, h - .36);
+  } else if (d.shape === 'carton') {
+    const fh = .56;
+    g.fillStyle = hGrad(d.body, -w / 2, w / 2, .82, 1.04); g.fillRect(-w / 2, -fh, w, fh);
+    g.fillStyle = shade(d.body, .86); g.beginPath(); g.moveTo(-w / 2, -fh); g.lineTo(-w / 2 + .03, -h + .03); g.lineTo(w / 2 - .03, -h + .03); g.lineTo(w / 2, -fh); g.fill();
+    g.fillStyle = shade(d.body, .95); g.fillRect(-w / 2 + .02, -h, w - .04, .035);
+    g.fillStyle = d.band; g.fillRect(-w / 2, -fh * .32, w, fh * .32); g.fillRect(-w / 2, -fh, w, .035);
+    drinkMotif(g, d.motif, 0, -fh * .62, w * .27, d.face);
+    txt(d.short, 0, -fh * .16, .075, '#FFFFFF');
+    shine(-w / 2 + .03, -fh + .02, fh - .04);
+  } else {                                                      // small yogurt-drink bottle with a waist
+    const pth = () => { g.beginPath(); g.moveTo(-w * .32, -h + .04); g.quadraticCurveTo(-w / 2, -h * .75, -w * .36, -h * .55); g.quadraticCurveTo(-w * .5, -h * .3, -w / 2, -.03); g.lineTo(w / 2, -.03); g.quadraticCurveTo(w * .5, -h * .3, w * .36, -h * .55); g.quadraticCurveTo(w / 2, -h * .75, w * .32, -h + .04); g.closePath(); };
+    pth(); g.fillStyle = hGrad(d.body, -w / 2, w / 2, .8, 1.06); g.fill();
+    g.fillStyle = hGrad(d.cap, -w * .34, w * .34); g.beginPath(); g.ellipse(0, -h + .04, w * .34, .03, 0, 0, 7); g.fill();
+    drinkMotif(g, d.motif, 0, -h * .38, w * .22, false);
+    txt(d.short, 0, -h * .7, .05, d.ink);
+    g.fillStyle = 'rgba(0,0,0,.15)'; g.fillRect(-w / 2 + .02, -.04, w - .04, .02);
+    shine(-w / 2 + .05, -h + .1, h - .18);
+  }
+  g.restore();
+}
+const drinkThumbs = {};
+const drinkThumb = id => drinkThumbs[id] ||= (() => { const c = document.createElement('canvas'); c.width = 120; c.height = 180; drawDrink(c.getContext('2d'), DRINKS[id], 60, 172, 160); return c.toDataURL(); })();
+// a drink as a small 3D object (origin at its base), for the slot and your hand
+function drinkModel(d) {
+  const G = new THREE.Group(), S = DRINK_SHAPES[d.shape];
+  const lbl = canvasTex(256, 128, (g, W, H) => {
+    const bg = d.shape === 'pet' || d.shape === 'glass' ? d.label : d.body;
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    if (d.band) { g.fillStyle = d.band; g.fillRect(0, H * .7, W, H * .3); }
+    for (const x of [48, 176]) drinkMotif(g, d.motif, x, H * .42, 30, d.face);
+    g.fillStyle = d.band ? '#FFFFFF' : d.ink; g.font = '900 26px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.save(); g.translate(112, H * .5); g.rotate(-Math.PI / 2); g.fillText(d.short, 0, 0); g.restore();
+    if (d.shape === 'pet' || d.shape === 'glass') { g.fillStyle = d.ink; g.fillRect(0, 0, W, 8); g.fillRect(0, H - 8, W, 8); }
+  });
+  const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .4, ...o });
+  const lblM = M('#ffffff', { map: lbl }), silver = M('#D9DDE2', { metalness: .8, roughness: .25 });
+  const add = (geo, m, y) => { const o = new THREE.Mesh(geo, m); o.position.y = y; G.add(o); return o; };
+  if (d.shape === 'can' || d.shape === 'tall') {
+    const h = d.shape === 'tall' ? .13 : .11, r = d.shape === 'tall' ? .029 : .033;
+    add(new THREE.CylinderGeometry(r, r, h - .012, 20), [lblM, silver, silver], h / 2);
+    add(new THREE.CylinderGeometry(r * .9, r, .008, 20), silver, h - .004); add(new THREE.CylinderGeometry(r, r * .88, .006, 20), silver, .003);
+    const tab = add(new THREE.BoxGeometry(.012, .002, .02), silver, h + .001); tab.position.z = .008;
+  } else if (d.shape === 'pet' || d.shape === 'glass') {
+    const glass = d.shape === 'glass', r = glass ? .03 : .034, bh = glass ? .11 : .14;
+    const shell = M(glass ? '#BFE6F2' : '#EEF5F8', { transparent: true, opacity: glass ? .5 : .35, roughness: .05, depthWrite: false });
+    add(new THREE.CylinderGeometry(r - .003, r - .003, bh - .01, 18), M(d.liquid, { transparent: !!d.clear, opacity: d.clear ? .55 : 1, roughness: .1 }), bh / 2);
+    add(new THREE.CylinderGeometry(r, r, bh, 18, 1, true), shell, bh / 2);
+    add(new THREE.CylinderGeometry(.016, r, .045, 18), d.clear || glass ? shell : M(d.liquid, { roughness: .15 }), bh + .022);
+    add(new THREE.CylinderGeometry(r + .0008, r + .0008, glass ? .045 : .06, 18, 1, true), lblM, bh * .5);
+    add(new THREE.CylinderGeometry(.015, .015, .025, 12), shell, bh + .055);
+    if (glass) add(new THREE.SphereGeometry(.012, 12, 8), M('#E4F4FA', { roughness: .05 }), bh + .05);
+    add(new THREE.CylinderGeometry(.0155, .0155, .018, 14), M(d.cap), bh + .074);
+  } else if (d.shape === 'carton') {
+    const mats = [lblM, lblM, M(d.body), M(d.body), lblM, lblM];
+    add(new THREE.BoxGeometry(.06, .09, .06), mats, .045);
+    const roof = add(new THREE.ConeGeometry(.043, .025, 4), M(shade(d.body, .92)), .1); roof.rotation.y = Math.PI / 4;
+    add(new THREE.BoxGeometry(.06, .012, .008), M(shade(d.body, .92)), .115);
+    const st = add(new THREE.CylinderGeometry(.002, .002, .05, 6), M(d.band), .12); st.position.x = .015;
+  } else {
+    add(new THREE.CylinderGeometry(.018, .021, .07, 16), M(d.body), .035);
+    add(new THREE.CylinderGeometry(.017, .017, .004, 16), M(d.cap, { metalness: .6 }), .072);
+  }
+  G.userData.h = d.shape === 'pet' ? .23 : d.shape === 'glass' ? .19 : d.shape === 'carton' ? .13 : d.shape === 'small' ? .075 : .12;
+  return G;
+}
 const VEND_THEMES = [
   { brand: 'ASAHO', side: 'SOFT DRINKS', body: '#1F3F8F', front: '#1F3F8F', accent: '#E8524A', ad: 'WONDO' },
   { brand: 'KIRRI', side: 'KIRRI', body: '#F2F2EE', front: '#F2F2EE', accent: '#D8433F', ad: '今だけ GET!' },
@@ -1031,42 +1223,51 @@ const VEND_THEMES = [
   { brand: 'レモン', side: 'LEMON', body: '#2E8C5A', front: '#FFF4B8', accent: '#E8B820', ad: 'レモン', top: 'carton', carton: true },
   { brand: 'MOONTORY', side: 'YUZU', body: '#F2B233', front: '#FFE9A8', accent: '#E07B28', ad: 'ゆず', top: 'orange' },
   { brand: 'PURE', side: 'ION ENERGY', body: '#F4F6F8', front: '#F4F6F8', accent: '#2F6FB8', ad: 'ION' },
-  { brand: 'BOSSA', side: 'COFFEE', body: '#1D2B5A', front: '#1D2B5A', accent: '#C9A06A', ad: 'COFFEE', top: 'plant' },
+  { brand: 'BOSSA', stock: 'coffee', side: 'COFFEE', body: '#1D2B5A', front: '#1D2B5A', accent: '#C9A06A', ad: 'COFFEE', top: 'plant' },
   { brand: 'ラーメン', side: 'HOT MEAL', body: '#FAF6EE', front: '#FAF6EE', accent: '#E8642A', ad: 'ラーメン' },
   { brand: 'MUSCAT', side: 'SHINE', body: '#B9E08A', front: '#F4F9EA', accent: '#5C9E2E', ad: 'MUSCAT', top: 'plant' },
   { brand: 'みなと', side: 'DRINK', body: '#D9443F', front: '#D9443F', accent: '#FFFFFF', ad: 'つめた〜い' },
 ];
 const vendCache = {};
+function vendLineup(th) {                         // 4 rows x 7 slots, the same for every machine of this theme
+  if (th.lineup) return th.lineup;
+  const rows = VEND_ROWS[th.stock || (th.carton ? 'milk' : 'drinks')];
+  th.lineup = rows.map((pool, r) => { const o = Math.floor(rand() * pool.length); return Array.from({ length: 7 }, (_, i) => ({ id: pool[(o + i) % pool.length], hot: r === 3 })); });
+  return th.lineup;
+}
 function vendFront(th) {
   if (vendCache[th.brand]) return vendCache[th.brand];
   const W = 220, H = 400, dark = new THREE.Color(th.front).getHSL({}).l < .45;
   const ink = dark ? '#FFFFFF' : '#2B2D33';
-  const drawDisplay = (g, lit) => {
-    g.fillStyle = lit ? '#FFFFFF' : '#F4F7FA'; g.fillRect(12, 46, W - 24, 212);
-    if (lit) return;
+  const lineup = vendLineup(th);
+  const drawDisplay = (g) => {
+    const bgd = g.createLinearGradient(0, 46, 0, 258); bgd.addColorStop(0, '#FFFFFF'); bgd.addColorStop(1, '#E3ECF4');
+    g.fillStyle = bgd; g.fillRect(12, 46, W - 24, 212);
     for (let r = 0; r < 4; r++) {
-      const y = 52 + r * 52;
-      for (let i = 0; i < 7; i++) {
-        const x = 18 + i * 27, col = pick(th.carton ? [th.accent, shade(th.accent, 1.2), '#FFFFFF', th.body] : ['#E8524A', '#3E7CD6', '#F2A33A', '#5CB85C', '#8E6E53', '#F5F5F5', '#C43E7A', '#2E9C9C', '#1D2B4A', th.accent]);
-        if (th.carton) { g.fillStyle = col; g.fillRect(x, y + 8, 18, 26); g.beginPath(); g.moveTo(x, y + 8); g.lineTo(x + 9, y); g.lineTo(x + 18, y + 8); g.fill(); g.fillStyle = '#fff'; g.fillRect(x + 3, y + 16, 12, 8); }
-        else if (rand() < .5) { g.fillStyle = col; g.beginPath(); g.roundRect(x, y + 6, 18, 28, 4); g.fill(); g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(x + 2, y + 15, 14, 7); g.fillStyle = '#C9CDD3'; g.fillRect(x + 2, y + 4, 14, 3); }
-        else { g.fillStyle = col; g.beginPath(); g.moveTo(x + 6, y); g.lineTo(x + 12, y); g.lineTo(x + 12, y + 6); g.quadraticCurveTo(x + 18, y + 10, x + 18, y + 16); g.lineTo(x + 18, y + 34); g.lineTo(x, y + 34); g.lineTo(x, y + 16); g.quadraticCurveTo(x, y + 10, x + 6, y + 6); g.fill(); g.fillStyle = '#F4F4F2'; g.fillRect(x + 6, y - 3, 6, 4); g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(x + 1, y + 18, 16, 7); }
-        g.fillStyle = 'rgba(255,255,255,.4)'; g.fillRect(x + 3, y + 10, 2, 18);
-      }
-      g.fillStyle = r === 3 ? '#D8433F' : th.accent === '#FFFFFF' ? '#2F6FB8' : th.accent; g.fillRect(12, y + 37, W - 24, 12);   // shelf with prices and buttons
-      g.fillStyle = '#FFFFFF'; g.font = '700 7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      for (let i = 0; i < 7; i++) { g.fillText('¥' + pick([110, 130, 150, 160]), 27 + i * 27, y + 41); g.fillStyle = r === 3 ? '#FFD0C8' : '#B8F5C2'; g.fillRect(21 + i * 27, y + 45, 12, 3); g.fillStyle = '#FFFFFF'; }
+      const y = 50 + r * 52;
+      g.fillStyle = 'rgba(40,60,90,.08)'; g.fillRect(12, y + 26, W - 24, 10);              // soft shadow at the back of the shelf
+      lineup[r].forEach((it, i) => drawDrink(g, DRINKS[it.id], 26 + i * 28, y + 36, 33));
+      g.fillStyle = '#B9C0C8'; g.fillRect(12, y + 36, W - 24, 2.5); g.fillStyle = '#EEF1F4'; g.fillRect(12, y + 36, W - 24, .8);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      lineup[r].forEach((it, i) => {                                                         // price tag, then the button
+        const x = 14 + i * 28, hot = it.hot;
+        g.fillStyle = hot ? '#D8433F' : '#2F6FB8'; g.fillRect(x, y + 39, 24, 4.5);
+        g.fillStyle = '#FFFFFF'; g.font = '700 3.3px "Zen Maru Gothic"'; g.fillText(hot ? 'あたたか〜い' : 'つめた〜い', x + 12, y + 41.3);
+        g.fillStyle = '#FFFFFF'; g.fillRect(x, y + 43.5, 24, 4.5); g.fillStyle = '#1E1F25'; g.font = '900 4px sans-serif'; g.fillText('¥' + DRINKS[it.id].price, x + 12, y + 45.9);
+        g.fillStyle = hot ? '#FF8A7A' : '#7FE08F'; g.beginPath(); g.roundRect(x + 7, y + 48.6, 10, 2.4, 1.2); g.fill();
+      });
     }
   };
-  const map = canvasTex(W, H, (g) => {
+  const map = canvasTex(W * 2, H * 2, (g) => {
+    g.scale(2, 2);
     const bg = g.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, shade(th.front, .93)); bg.addColorStop(.5, shade(th.front, 1.03)); bg.addColorStop(1, shade(th.front, .9));
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     g.fillStyle = th.accent === '#FFFFFF' ? shade(th.body, .75) : th.accent; g.fillRect(0, 0, W, 40);
     g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = '900 22px "Zen Maru Gothic"'; let tw = g.measureText(th.brand).width; if (tw > W * .8) g.font = `900 ${22 * W * .8 / tw}px "Zen Maru Gothic"`; g.fillText(th.brand, W / 2, 21);
     g.fillStyle = '#2B2D33'; g.fillRect(8, 42, W - 16, 220);
-    drawDisplay(g, false);
-    g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.moveTo(20, 258); g.lineTo(80, 46); g.lineTo(104, 46); g.lineTo(44, 258); g.fill();
+    drawDisplay(g);
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(20, 258); g.lineTo(80, 46); g.lineTo(104, 46); g.lineTo(44, 258); g.fill();
     // ad panel
     g.fillStyle = shade(th.front, .85); g.fillRect(10, 270, 118, 56);
     const ad = g.createLinearGradient(12, 272, 126, 324); ad.addColorStop(0, shade(th.accent === '#FFFFFF' ? '#9FD3F4' : th.accent, 1.25)); ad.addColorStop(1, th.accent === '#FFFFFF' ? '#2F6FB8' : th.accent);
@@ -1083,7 +1284,7 @@ function vendFront(th) {
     g.fillStyle = '#C9CDD3'; g.font = '700 9px "Zen Maru Gothic"'; g.fillText('∨ 取出口 ∨', 99, 358);
     g.fillStyle = ink; g.globalAlpha = .6; g.font = '700 8px sans-serif'; g.fillText('つめた〜い・あたたか〜い', W / 2, 390); g.globalAlpha = 1;
   });
-  const emi = canvasTex(W, H, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.drawImage(map.image, 12, 46, W - 24, 212, 12, 46, W - 24, 212); g.globalAlpha = .5; g.drawImage(map.image, 12, 272, 196, 52, 12, 272, 196, 52); });
+  const emi = canvasTex(W * 2, H * 2, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, W * 2, H * 2); g.drawImage(map.image, 24, 92, (W - 24) * 2, 424, 24, 92, (W - 24) * 2, 424); g.globalAlpha = .5; g.drawImage(map.image, 24, 544, 392, 104, 24, 544, 392, 104); });
   return vendCache[th.brand] = glowMat(map, emi, .15, .5, { roughness: .45 });
 }
 const vendSideCache = {};
@@ -1116,8 +1317,10 @@ function vending(side, z) {
   } else if (th.top === 'plant') { const pp = plantPot(0, 0, 0, .7); pp.position.set(.2, 1.93, 0); g.add(pp); }
   const fr = vendFront(th);
   mesh(cardGeo, fr, 0, .93, .405, g, false).scale.set(.98, 1.83, 1);
-  box(.62, .2, .1, std('#1E1F25'), 0, .34, .36, g, false);              // pickup slot recess
+  box(.6, .12, .04, std('#2A2C33', { roughness: .3, metalness: .4 }), 0, .21, .415, g, false);   // pickup flap over the slot
   box(1.02, .05, .82, std(shade(th.body, .7)), 0, .02, 0, g, false);
+  const machine = { g, th };
+  addAction(side * 4.85, z, 1.5, () => 'kau', () => openVend(machine), () => !holding);
   // recycling bin next to it
   const bz = z + (side < 0 ? 1 : -1) * .85;
   if (claim(side, 'wall', bz - .3, bz + .3)) { const bg = group(side * 5.6, .15, bz); cyl(.24, .22, .75, std('#3E7CD6'), 0, .375, 0, 12, bg); cyl(.25, .25, .06, std('#E8E8E8'), 0, .77, 0, 12, bg); }
@@ -1744,13 +1947,13 @@ function cafeInterior(B) {
     box(.18, .04, .26, std('#3A5A7A'), lx, .62, lz - .05, G, false);
     const fl2 = group(lx, .16, lz + .85); G.add(fl2);                 // lamp tucked between the armchairs
     cyl(.15, .17, .03, brass, 0, .015, 0, 14, fl2); cyl(.015, .015, 1.5, brass, 0, .76, 0, 6, fl2, false);
-    mesh(new THREE.CylinderGeometry(.13, .2, .26, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#F4E2C4', side: THREE.DoubleSide, emissive: 0xffc070, emissiveIntensity: .5 }), 0, 1.55, 0, fl2, false);
+    mesh(new THREE.CylinderGeometry(.13, .2, .26, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#F4E2C4', side: THREE.DoubleSide, emissive: 0xffc070, emissiveIntensity: .3 }), 0, 1.55, 0, fl2, false);
   }
   // a tall plant in the corner by the window
   { const bp = plantPot(0, 0, 0, 1.7); bp.position.set(fx + 2.05, .16, za + .45); G.add(bp); }
 
   // ---------- warm light inside
-  for (const [x, z] of [[5.0, za + 2.5], [2.5, zb - 1.5], [5.2, zb - 1.3], [4.0, za + 5.2]]) { const l = new THREE.PointLight(0xffc890, 4, 10, 1.3); l.position.set(fx + x, H - .5, z); scene.add(l); cafeLights.push(l); }
+  for (const [x, z] of [[5.0, za + 2.5], [2.5, zb - 2.3], [5.2, zb - 2.3], [4.0, za + 5.2]]) { const l = new THREE.PointLight(0xffc890, 4, 10, 1.3); l.position.set(fx + x, H - .5, z); scene.add(l); cafeLights.push(l); }
   claim(1, 'wall', dz - DW - .4, dz + DW + .4);
 
 }
@@ -2627,7 +2830,7 @@ function setTime(t) {
   grade.uniforms.tint.value.set(...T.tint); grade.uniforms.sat.value = T.sat;
   bloom.strength = T.bloom;
   renderer.toneMappingExposure = T.exposure;
-  for (const l of cafeLights) l.intensity = T.night ? 10 : 4;
+  for (const l of cafeLights) l.intensity = T.night ? 4.5 : 4;
   document.querySelectorAll('#tod button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === t));
 }
 
@@ -2761,7 +2964,7 @@ const look = (dx, dy, k) => { player.yaw -= dx * k; player.pitch = THREE.MathUti
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse') {
     if (locked()) tapAt(0, 0);
-    else { card.style.display = 'none'; cv.requestPointerLock(); }
+    else { card.style.display = 'none'; closeVend(); cv.requestPointerLock(); }
     return;
   }
   drag = { x: e.clientX, y: e.clientY }; moved = 0; cv.setPointerCapture(e.pointerId);
@@ -2821,6 +3024,7 @@ const VERBS = {
   tatsu: { r: [['立', 'た'], ['つ', '']], ro: 'tatsu', en: 'Stand up', zh: '站起来' },
   sosogu: { r: [['水', 'みず'], ['を', ''], ['注', 'そそ'], ['ぐ', '']], ro: 'mizu o sosogu', en: 'Pour some water', zh: '倒水' },
   nomu: { r: [['飲', 'の'], ['む', '']], ro: 'nomu', en: 'Drink', zh: '喝' },
+  kau: { r: [['飲', 'の'], ['み', ''], ['物', 'もの'], ['を', ''], ['買', 'か'], ['う', '']], ro: 'nomimono o kau', en: 'Buy a drink', zh: '买饮料' },
   akeru: { r: [['開', 'あ'], ['ける', '']], ro: 'akeru', en: 'Open the door', zh: '开门' },
   shimeru: { r: [['閉', 'し'], ['める', '']], ro: 'shimeru', en: 'Close the door', zh: '关门' },
   nagasu: { r: [['流', 'なが'], ['す', '']], ro: 'nagasu', en: 'Flush', zh: '冲水' },
@@ -2872,10 +3076,62 @@ function drink() {
     const up = Math.min(1, k / .3), down = Math.max(0, (k - .8) / .2);
     H.g.position.set(.2 - up * .2, -.2 + up * .12 - down * .3, -.45 + up * .18);
     H.g.rotation.x = up * .9 * (1 - down);
-    H.w.scale.y = Math.max(.001, 1 - Math.max(0, (k - .25) / .5));
-  }, () => { camera.remove(H.g); holding = null; });
+    if (H.w) H.w.scale.y = Math.max(.001, 1 - Math.max(0, (k - .25) / .5));
+  }, () => { camera.remove(H.g); holding = null; if (H.drink) toast(lang === 'en' ? 'ごちそうさま！ · gochisōsama · That hit the spot!' : 'ごちそうさま！ · 我喝完了，谢谢款待', 2000); });
 }
+// ---------------------------------------------------------------- vending machine: choose, ガコン, pick it up, drink
+const vendEl = document.getElementById('vend'), toastEl = document.getElementById('toast');
+let vendOpen = null, toastTimer = 0;
+const rubyHTML = r => r.map(([k, rt]) => rt ? `<ruby>${k}<rt>${rt}</rt></ruby>` : k).join('');
+function toast(html, ms = 1800) { toastEl.innerHTML = html; toastEl.style.display = 'block'; clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.style.display = 'none', ms); }
+function openVend(m) {
+  vendOpen = m; if (locked()) document.exitPointerLock();
+  const en = lang === 'en', seen = new Set(), items = [];
+  for (const row of m.th.lineup) for (const it of row) { const k = it.id + it.hot; if (!seen.has(k)) { seen.add(k); items.push(it); } }
+  m.items = items.slice(0, 9 * 2);
+  document.getElementById('vendJp').innerHTML = rubyHTML([['どれにする', ''], ['？', '']]);
+  document.getElementById('vendSub').textContent = en ? 'dore ni suru? · Which one? (click one, or press its number)' : '要哪一个？（点一下，或按数字键）';
+  document.getElementById('vendGrid').innerHTML = m.items.map((it, i) => { const d = DRINKS[it.id]; return `<button class="it" data-i="${i}">${i < 9 ? `<span class="num">${i + 1}</span>` : ''}<img src="${drinkThumb(it.id)}" alt=""><span>${rubyHTML(d.r)}</span><span class="en">${en ? d.en : d.zh}</span><span class="pr"><span class="tag ${it.hot ? 'hot' : 'cold'}">${it.hot ? 'あたたか〜い' : 'つめた〜い'}</span>¥${d.price}</span></button>`; }).join('');
+  vendEl.style.display = 'block';
+}
+function closeVend() { vendOpen = null; vendEl.style.display = 'none'; }
+document.getElementById('vendClose').onclick = closeVend;
+document.getElementById('vendGrid').addEventListener('click', e => { const b = e.target.closest('.it'); if (b && vendOpen) buyDrink(vendOpen, vendOpen.items[+b.dataset.i]); });
+addEventListener('keydown', e => {
+  if (!vendOpen) return;
+  if (e.key === 'Escape') closeVend();
+  const n = +e.key; if (n >= 1 && n <= 9 && vendOpen.items[n - 1]) buyDrink(vendOpen, vendOpen.items[n - 1]);
+});
+function buyDrink(m, it) {
+  closeVend();
+  const d = DRINKS[it.id], dm = drinkModel(d); scene.add(dm);
+  m.g.updateMatrixWorld();
+  const out = m.g.localToWorld(new THREE.Vector3(0, .2, .48)), top = m.g.localToWorld(new THREE.Vector3(0, .75, .48));
+  const ss = k => k * k * (3 - 2 * k), seg = (k, a, b) => Math.min(1, Math.max(0, (k - a) / (b - a)));
+  const yaw = m.g.rotation.y; dm.rotation.set(Math.PI / 2, 0, 0); dm.rotation.order = 'YXZ'; dm.rotation.y = yaw + Math.PI / 2;
+  toast(`¥${d.price} … <b>ガコン！</b>`, 1400);
+  playAnim(2.0, k => {
+    const f = seg(k, .15, .4);                                          // it drops into the tray and settles
+    dm.visible = k > .15;
+    dm.position.lerpVectors(top, out, f * f); dm.position.y += f >= 1 ? Math.abs(Math.sin(seg(k, .4, .5) * Math.PI)) * .03 : 0;
+    const p = ss(seg(k, .6, 1));                                        // you reach down and pick it up
+    if (p > 0) {
+      camera.updateMatrixWorld();
+      const hand = camera.localToWorld(new THREE.Vector3(.17, -.15 - dm.userData.h * .35, -.45));
+      dm.scale.setScalar(1 - .3 * p);
+      dm.position.lerpVectors(out, hand, p); dm.rotation.x = Math.PI / 2 * (1 - p); dm.rotation.y = (yaw + Math.PI / 2) * (1 - p) + player.yaw * p;
+    }
+  }, () => { scene.remove(dm); holdDrink(d, it.hot); toast(`${rubyHTML(d.r)} ${it.hot ? '(あたたか〜い)' : '(つめた〜い)'}`, 2200); });
+}
+function holdDrink(d, hot) {
+  if (!camera.parent) scene.add(camera);
+  const hg = new THREE.Group(); hg.position.set(.2, -.2, -.45); camera.add(hg);
+  const dm = drinkModel(d); dm.scale.setScalar(.7); dm.position.y = -dm.userData.h * .35; hg.add(dm); hg.position.set(.17, -.15, -.45);
+  holding = { g: hg, drink: d, hot };
+}
+
 function toggleSeat() {
+  if (vendOpen) return;
   if (seatAnim || actAnim) return;
   if (seated) standUp();
   else if (seatTarget) seatTarget.seat ? sitDown(seatTarget.seat) : seatTarget.act();
