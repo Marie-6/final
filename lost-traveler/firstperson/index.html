@@ -1222,11 +1222,7 @@ function cafeTables(side, z) {
     const ft = box(.34, .03, .05, iron, .17, .05, 0, f, false); ft.rotation.z = -.12;
     cyl(.03, .03, .015, iron, .33, .008, 0, 10, f, false);
   }
-  // cup on a saucer, and a little brass number stand
-  cyl(.075, .06, .012, std('#FFFFFF', { roughness: .3 }), .12, .764, .05, 18, t, false);
-  cyl(.045, .036, .08, std('#FFFFFF', { roughness: .3 }), .12, .81, .05, 16, t, false);
-  cyl(.04, .04, .005, std('#4A2A18', { roughness: .2 }), .12, .846, .05, 16, t, false);
-  const hd = mesh(new THREE.TorusGeometry(.025, .007, 6, 10, Math.PI), std('#FFFFFF', { roughness: .3 }), .17, .81, .05, t, false); hd.rotation.z = -Math.PI / 2;
+  // a little brass table-number stand
   cyl(.02, .025, .01, brass, -.15, .763, -.08, 10, t, false); box(.06, .08, .005, brass, -.15, .808, -.08, t, false);
   // two bistro chairs facing the table: black iron frame, wood-slat seat, curved slatted back
   for (const dz of [-.7, .7]) {
