@@ -42,6 +42,10 @@ kbd{font-family:inherit;background:var(--sign);color:var(--navy);border-radius:5
 .move{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 64px);z-index:3;display:none;flex-direction:column;gap:8px}
 .move button{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--navy);font-size:22px;font-weight:900;box-shadow:0 4px 14px rgba(16,24,42,.3)}
 @media (pointer:coarse){.move{display:flex}.help .keys{display:none}}
+#seat{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 64px);z-index:3;display:none;background:var(--amber);color:var(--navy);border:0;border-radius:999px;padding:8px 18px;font:700 16px var(--font);box-shadow:0 6px 18px rgba(16,24,42,.3);cursor:pointer}
+#seat rt{font-size:10px}
+#seat kbd{background:var(--navy);color:var(--sign);margin-right:6px}
+@media (pointer:coarse){#seat kbd{display:none}}
 #dot{position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(29,43,74,.6);z-index:3;display:none;pointer-events:none}
 body.locked #dot{display:block}
 body.locked canvas{cursor:none}
@@ -64,6 +68,7 @@ body.shot .hud,body.shot .help,body.shot .move{display:none}
 </div>
 <div class="help"><span class="keys"><span class="free">Click to look around · </span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · <kbd>Shift</kbd> run · <span class="lockedtip">click a sign to read it · <kbd>Esc</kbd> frees the mouse</span></span><span class="touch">drag to look · tap a sign to read it</span></div>
 <div id="dot" aria-hidden="true"></div>
+<button id="seat" type="button"></button>
 <div class="move"><button id="fwd" aria-label="Walk forward">▲</button><button id="back" aria-label="Walk back">▼</button></div>
 
 <div id="card" role="dialog" aria-label="Sign">
@@ -464,6 +469,8 @@ const hint = {
   otearai: { ruby: [['お', ''], ['手洗', 'てあら'], ['い', '']], ro: 'otearai', en: 'Restroom', zh: '洗手间' },
   irasshai: { ruby: [['いらっしゃいませ', '']], ro: 'irasshaimase', en: 'Welcome! (what shop staff say)', zh: '欢迎光临' },
   omizu: { ruby: [['お', ''], ['水', 'みず'], ['は', ''], ['セルフサービス', '']], ro: 'omizu wa serufu sābisu', en: 'Water is self-service', zh: '饮用水请自助' },
+  nagasu: { ruby: [['流', 'なが'], ['す', '']], ro: 'nagasu', en: 'Flush (the toilet)', zh: '冲水' },
+  kirei: { ruby: [['いつもきれいにご', ''], ['利用', 'りよう'], ['ありがとうございます', '']], ro: 'itsumo kirei ni go-riyō arigatō gozaimasu', en: 'Thank you for always keeping it clean', zh: '感谢您一直保持清洁' },
   kohi: { ruby: [['コーヒー', '']], ro: 'kōhī', en: 'Coffee', zh: '咖啡' },
 };
 
@@ -498,7 +505,7 @@ function building(side, z0, z1, o) {
   // keep the sidewalk in front of the door clear, and remember where the door is
   const doorU = { shop: [len / 2 - 1.0, len / 2 + 1.0], konbini: [len / 2 - 1.0, len / 2 + 1.0], entrance: [len / 2 - 1.5, len / 2 + 1.5],
                   house: [len * .3 - .3, len * .3 + 1.9], parking: [0, len] }[o.ground];
-  if (doorU) claim(side, 'wall', uToZ(doorU[0]), uToZ(doorU[1]));
+  if (doorU) { claim(side, 'wall', uToZ(doorU[0]), uToZ(doorU[1])); if (o.ground !== 'parking') doorways.push([side, Math.min(uToZ(doorU[0]), uToZ(doorU[1])), Math.max(uToZ(doorU[0]), uToZ(doorU[1]))]); }
   if (o.ground === 'shop' || o.ground === 'konbini') noPole.push([side, Math.min(z0, z1) + .3, Math.max(z0, z1) - .3]);
   else if (doorU) noPole.push([side, Math.min(uToZ(doorU[0]), uToZ(doorU[1])), Math.max(uToZ(doorU[0]), uToZ(doorU[1]))]);
   const freeU = (a, b) => { for (let k = 0; k < 12; k++) { const u = range(a, b); if (!doorU || u < doorU[0] - .4 || u > doorU[1] + .4) return u; } return null; };
@@ -869,6 +876,16 @@ function apato(side, z0, z1, o) {
 
 // ================================================================ props
 const lampPositions = [];
+// every chair you can sit on: where it is, which way its front points (ry), and eye height when seated
+const seats = [];
+const addSeat = (x, z, ry, eye) => seats.push({ x, z, ry, yaw: ry + Math.PI, eye });
+// other things you can do (pour water, open a door, flush...): position, reach, the verb to show, what happens
+const actions = [];
+const addAction = (x, z, reach, word, act, when) => actions.push({ x, z, reach, word, act, when });
+const dynAll = o => { o.traverse(m => { if (m.isMesh) dynamic.add(m); }); return o; };   // keep animated meshes out of mergeStatic
+const restroom = { door: null, open: 0, target: 0 };
+const water = {};
+const doorways = [];        // [side, z from, z to]: building entrances, kept open from the road
 const noPole = [];          // [side, z from, z to]: shop fronts and doorways, no poles there
 const poleTags = [];
 function poleTag() {
@@ -1192,7 +1209,7 @@ function cafeTables(side, z) {
   if (!claim(side, 'wall', z - 1.0, z + 1.0)) return;
   const x = side * 5.3, wood = std('#8A6A45'), m = metal('#3A3A40');
   cyl(.38, .38, .04, wood, x, .9, z, 18); cyl(.03, .03, .72, m, x, .53, z, 6); cyl(.2, .2, .03, m, x, .17, z, 12);
-  for (const dz of [-.65, .65]) { box(.38, .04, .38, wood, x, .6, z + dz); box(.04, .45, .38, wood, x + side * .17, .85, z + dz); for (const [a, b] of [[-.15, -.15], [.15, -.15], [-.15, .15], [.15, .15]]) box(.03, .45, .03, m, x + a, .38, z + dz + b, scene, false); }
+  for (const dz of [-.65, .65]) { addSeat(x, z + dz, -side * Math.PI / 2, 1.12); box(.38, .04, .38, wood, x, .6, z + dz); box(.04, .45, .38, wood, x + side * .17, .85, z + dz); for (const [a, b] of [[-.15, -.15], [.15, -.15], [-.15, .15], [.15, .15]]) box(.03, .45, .03, m, x + a, .38, z + dz + b, scene, false); }
   const cup = cyl(.04, .035, .09, std('#FFFFFF'), x + .1, .96, z, 10, scene, false);
 }
 function recycling(side, z) {
@@ -1209,7 +1226,14 @@ function recycling(side, z) {
 }
 
 function guardrail(side, z0, z1, color) {
-  const a = Math.min(z0, z1), b = Math.max(z0, z1);
+  let a = Math.min(z0, z1), b = Math.max(z0, z1);
+  // leave a gap in front of every entrance: split the run around doorways (pieces only shrink, so this ends)
+  for (const [sd, p, q] of doorways) {
+    if (sd !== side || q + .8 <= a || p - .8 >= b) continue;
+    if (p - .8 > a) guardrail(side, a, p - .8, color);
+    if (q + .8 < b) guardrail(side, q + .8, b, color);
+    return;
+  }
   if (b - a < 2.5 || !claim(side, 'curb', a, b)) return;
   const x = side * 3.92, m = metal(color), n = Math.ceil((b - a) / 2);
   for (let i = 0; i <= n; i++) cyl(.035, .035, .85, m, x, .58, a + i * (b - a) / n, 8);
@@ -1373,7 +1397,7 @@ function wafuFront(B, norenText, info) {
 const cafeDoor = { panels: [], open: 0, z: 0, x: 0 };
 function cafeInterior(B) {
   const fx = B.fx, z0 = B.uToZ(0), z1 = B.uToZ(B.len), za = Math.min(z0, z1) + .2, zb = Math.max(z0, z1) - .2;
-  const xb = fx + 8.2, H = B.groundH, zc = (za + zb) / 2, dz = 15;
+  const xb = fx + 8.2, H = B.groundH, zc = (za + zb) / 2, dz = zc;
   const G = new THREE.Group(); scene.add(G);
   const T = cafeTex();
   const wood = std('#ffffff', { map: T.grainMid, roughness: .55 }), darkWood = std('#ffffff', { map: T.grainDark, roughness: .6 });
@@ -1383,8 +1407,8 @@ function cafeInterior(B) {
   const tex = (t, rx, ry) => { const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); return c; };
 
   // ---------- room: plank floor, beamed ceiling, brick wall behind the counter, panelled walls
-  const fl = mesh(new THREE.PlaneGeometry(xb - fx, zb - za), std('#ffffff', { map: tex(T.floor, (xb - fx) / 2, (zb - za) / 2), roughness: .45 }), (fx + xb) / 2, .16, zc, G, false); fl.rotation.x = -Math.PI / 2;
-  const ce = mesh(new THREE.PlaneGeometry(xb - fx, zb - za), std('#ffffff', { map: tex(T.ceiling, (xb - fx) / 2, (zb - za) / 2) }), (fx + xb) / 2, H - .02, zc, G, false); ce.rotation.x = Math.PI / 2;
+  const fl = mesh(new THREE.PlaneGeometry(xb + .1 - fx, zb + .1 - za), std('#ffffff', { map: tex(T.floor, (xb + .1 - fx) / 2, (zb + .1 - za) / 2), roughness: .45 }), (fx + xb + .1) / 2, .16, zc + .05, G, false); fl.rotation.x = -Math.PI / 2;
+  const ce = mesh(new THREE.PlaneGeometry(xb + .1 - fx, zb + .1 - za), std('#ffffff', { map: tex(T.ceiling, (xb + .1 - fx) / 2, (zb + .1 - za) / 2) }), (fx + xb + .1) / 2, H - .02, zc + .05, G, false); ce.rotation.x = Math.PI / 2;
   box(xb - fx, .1, zb - za, std('#2A1E18'), (fx + xb) / 2, H + .04, zc, G);
   for (let x = fx + 1.2; x < xb; x += 1.8) box(.22, .26, zb - za, darkWood, x, H - .14, zc, G, false);
   // side wall behind the counter: brick
@@ -1398,12 +1422,15 @@ function cafeInterior(B) {
     box(len, .12, .08, darkWood, 0, H - .12, .03, w);
   };
   wallSet(xb - fx, (fx + xb) / 2, zb + .1, Math.PI);
-  wallSet(zb - za, xb + .1, zc, -Math.PI / 2);
+  const rdz = za + 6.3, rdw = .45;                                   // restroom doorway on the side wall
+  wallSet(rdz - rdw - za, xb + .1, (za + rdz - rdw) / 2, -Math.PI / 2);
+  wallSet(zb - rdz - rdw, xb + .1, (rdz + rdw + zb) / 2, -Math.PI / 2);
+  box(.2, H - 2.27, 2 * rdw, std('#E9D9BC', { roughness: .9 }), xb + .2, (2.27 + H) / 2, rdz, G);
 
   // shop front: glass with frames, an automatic sliding door in the middle
   const glass = new THREE.MeshStandardMaterial({ color: '#D6E8F2', transparent: true, opacity: .16, roughness: .05, depthWrite: false });
   const frameM = metal('#3A3D44');
-  const d0 = dz - .8, d1 = dz + .8;
+  const DW = 1.2, d0 = dz - DW, d1 = dz + DW;                          // door opening is 2.4 m wide
   for (const [a, b] of [[za, d0], [d1, zb]]) {
     const n = Math.max(1, Math.round((b - a) / 2.2));
     for (let i = 0; i < n; i++) { const pa = a + (b - a) * i / n, pb = a + (b - a) * (i + 1) / n; box(.04, 2.45, pb - pa - .06, glass, fx + .02, .55 + 1.225, (pa + pb) / 2, G, false); }
@@ -1412,27 +1439,34 @@ function cafeInterior(B) {
     box(.12, .08, b - a, frameM, fx + .02, 2.82, (a + b) / 2, G, false);
     // window ledge inside with stools, cups and plants
     box(.45, .05, b - a - .3, wood, fx + .35, 1.05, (a + b) / 2, G);
-    for (let z = a + .7; z < b - .5; z += 1.1) { cyl(.17, .17, .05, darkWood, fx + .85, .78, z, 14, G); cyl(.025, .025, .62, blackM, fx + .85, .46, z, 6, G); cyl(.16, .16, .02, blackM, fx + .85, .17, z, 12, G); }
+    for (let z = a + .7; z < b - .5; z += 1.1) { addSeat(fx + .85, z, -Math.PI / 2, 1.35); cyl(.17, .17, .05, darkWood, fx + .85, .78, z, 14, G); cyl(.025, .025, .62, blackM, fx + .85, .46, z, 6, G); cyl(.16, .16, .02, blackM, fx + .85, .17, z, 12, G); }
   }
   box(.12, .55, zb - za, std('#3A2A20'), fx + .02, H - .28, zc, G);                    // header above the glass
   for (const z of [d0, d1]) box(.12, 2.75, .1, frameM, fx + .02, 1.5, z, G);
-  box(.12, .1, 1.7, frameM, fx + .02, 2.85, dz, G);
+  box(.12, .1, 2 * DW + .1, frameM, fx + .02, 2.85, dz, G);
   const doorGlass = new THREE.MeshStandardMaterial({ color: '#D6E8F2', transparent: true, opacity: .2, roughness: .05, depthWrite: false });
+  const logoDecal = cafeLogoTex();
   for (const s2 of [-1, 1]) {
-    const p = new THREE.Group(); p.position.set(fx + .08, 0, dz + s2 * .4); scene.add(p);
-    const gpane = mesh(new THREE.BoxGeometry(.03, 2.5, .74), doorGlass, 0, 1.47, 0, p, false);
-    for (const y of [.2, 2.75]) mesh(new THREE.BoxGeometry(.06, .08, .8), frameM, 0, y, 0, p, false);
-    for (const zz of [-.38, .38]) mesh(new THREE.BoxGeometry(.06, 2.6, .05), frameM, 0, 1.48, zz, p, false);
-    mesh(new THREE.BoxGeometry(.04, .04, .5), metal('#C9CDD3'), -.04, 1.05, 0, p, false);
+    const PW = DW - .02, p = new THREE.Group(); p.position.set(fx + .08, 0, dz + s2 * DW / 2); scene.add(p);
+    mesh(new THREE.BoxGeometry(.03, 2.55, PW - .08), doorGlass, 0, 1.5, 0, p, false);
+    for (const y of [.2, 2.78]) mesh(new THREE.BoxGeometry(.07, .1, PW), darkWood, 0, y, 0, p, false);
+    for (const zz of [-PW / 2 + .03, PW / 2 - .03]) mesh(new THREE.BoxGeometry(.07, 2.68, .06), darkWood, 0, 1.49, zz, p, false);
+    // long brass pull bar on the meeting edge
+    mesh(new THREE.BoxGeometry(.03, .9, .03), brass, -.07, 1.1, -s2 * (PW / 2 - .14), p, false);
+    for (const y of [.7, 1.5]) mesh(new THREE.BoxGeometry(.06, .03, .03), brass, -.05, y, -s2 * (PW / 2 - .14), p, false);
+    // round shop logo on each pane, readable from the street, and the automatic-door sticker
+    const lg = mesh(new THREE.PlaneGeometry(.5, .5), new THREE.MeshBasicMaterial({ map: logoDecal, transparent: true, depthWrite: false }), -.025, 1.55, 0, p, false); lg.rotation.y = -Math.PI / 2;
+    const ad = mesh(new THREE.PlaneGeometry(.42, .1), std('#ffffff', { map: autoDoorTex() }), -.025, 1.05, 0, p, false); ad.rotation.y = -Math.PI / 2;
     p.traverse(o => { if (o.isMesh) { dynamic.add(o); o.userData.noCollide = true; } });
-    cafeDoor.panels.push({ g: p, home: dz + s2 * .4, dir: s2 });
+    cafeDoor.panels.push({ g: p, home: dz + s2 * DW / 2, dir: s2, slide: PW - .06 });
   }
-  cafeDoor.z = dz; cafeDoor.x = fx;
-  sign({ lines: [{ t: '営業中', size: .5, color: '#FFFFFF' }], w: .5, h: .2, bg: '#D8433F', fg: '#FFF', frame: false }, fx + .12, 1.75, dz - 1.4, -Math.PI / 2, hint.cafe).traverse(o => o.userData.noCollide = true);
+  cafeDoor.z = dz; cafeDoor.x = fx; cafeDoor.za = za; cafeDoor.zb = zb;
+  doorways.push([1, dz - DW, dz + DW]);
+  sign({ lines: [{ t: '営業中', size: .5, color: '#FFFFFF' }], w: .5, h: .2, bg: '#D8433F', fg: '#FFF', frame: false }, fx + .12, 1.75, dz - DW - .55, -Math.PI / 2, hint.cafe).traverse(o => o.userData.noCollide = true);
   sign({ lines: [{ t: 'いらっしゃいませ', size: .55, color: '#5B3A2E' }], w: 1.2, h: .22, bg: '#FFF8EC', fg: '#5B3A2E', frame: false }, fx + .14, 2.55, dz, -Math.PI / 2, hint.irasshai);
-  const mat = mesh(new THREE.PlaneGeometry(1.0, 1.4), std('#5B3A2E'), fx + .9, .165, dz, G, false); mat.rotation.x = -Math.PI / 2;
+  const mat = mesh(new THREE.PlaneGeometry(1.0, 2.0), std('#5B3A2E'), fx + .9, .165, dz, G, false); mat.rotation.x = -Math.PI / 2;
   // things on the window ledge
-  for (const [z, t] of [[za + 1.2, 'plant'], [za + 3.4, 'cup'], [za + 5.6, 'book'], [zb - 1.4, 'plant'], [zb - 3.5, 'cup'], [zb - 5.2, 'book']]) {
+  for (const [z, t] of [[za + .9, 'plant'], [za + 2.2, 'cup'], [zb - .9, 'plant'], [zb - 2.0, 'cup'], [zb - 2.9, 'book']]) {
     if (t === 'plant') { const pp = plantPot(0, 0, 0, .55); pp.position.set(fx + .35, 1.08, z); G.add(pp); }
     else if (t === 'cup') cafeCup(G, fx + .35, 1.08, z, white);
     else { box(.22, .03, .3, std('#F4EEDF'), fx + .35, 1.09, z, G, false); box(.005, .035, .3, std('#7A5A3A'), fx + .35, 1.09, z, G, false); }
@@ -1440,33 +1474,41 @@ function cafeInterior(B) {
   // hanging plants in the windows
   for (const z of [za + 2.3, zb - 2.3]) { cyl(.004, .004, .7, blackM, fx + .45, H - .35, z, 4, G, false); const hp = group(fx + .45, H - 1.0, z); G.add(hp); cyl(.15, .11, .18, std('#E5DCCB'), 0, 0, 0, 12, hp); foliage(hp, 0, -.15, 0, .28, .35, .28, 'green', 26, .2); }
 
-  // ---------- counter along the brick side wall (you see it from the side as you walk in)
-  const cxa = fx + 3.7, cxb = xb - .5, czc = za + 2.0;               // counter runs along x
+  // ---------- L-shaped counter: a long run along the brick wall, then a return leg into the room with the register
+  const cxa = fx + 3.0, cxe = xb - .8, czc = za + 2.0;                // main run along x, outer corner at cxe
   const caseLen = 1.9, runA = cxa + caseLen;
-  const front2 = std('#ffffff', { map: tex(T.panelWood, (cxb - runA) / .9, 1) });
-  box(cxb - runA, 1.0, .8, [darkWood, darkWood, darkWood, darkWood, front2, darkWood], (runA + cxb) / 2, .66, czc, G);
-  box(cxb - runA + .1, .07, .95, std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 }), (runA + cxb) / 2, 1.195, czc + .05, G);
-  box(cxb - runA, .08, .06, brass, (runA + cxb) / 2, .3, czc + .43, G, false);                       // foot rail
-  for (let x = runA + .5; x < cxb; x += 1.2) box(.04, .14, .04, brass, x, .24, czc + .43, G, false);
+  const rx = cxe - .4, rz0 = czc + .4, rz1 = za + 4.9;                // return leg along z (customer side faces -x)
+  const topM = std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 });
+  const front2 = std('#ffffff', { map: tex(T.panelWood, (cxe - runA) / .9, 1) });
+  const front3 = std('#ffffff', { map: tex(T.panelWood, (rz1 - rz0) / .9, 1) }), endCap = std('#ffffff', { map: tex(T.panelWood, 1, 1) });
+  box(cxe - runA, 1.0, .8, [darkWood, darkWood, darkWood, darkWood, front2, darkWood], (runA + cxe) / 2, .66, czc, G);
+  box(cxe - runA + .1, .07, .95, topM, (runA + cxe) / 2 + .05, 1.195, czc + .05, G);
+  box(.8, 1.0, rz1 - rz0, [darkWood, front3, darkWood, darkWood, endCap, darkWood], rx, .66, (rz0 + rz1) / 2, G);
+  box(.95, .07, rz1 - rz0 + .05, std('#ffffff', { map: tex(T.grainTop, 1, 3), roughness: .35 }), rx - .05, 1.195, (rz0 + rz1) / 2 + .02, G);
+  // brass foot rails on both legs, with posts
+  box(cxe - .8 - runA, .08, .06, brass, (runA + cxe - .8) / 2, .3, czc + .43, G, false);
+  for (let x = runA + .5; x < cxe - .8; x += 1.2) box(.04, .14, .04, brass, x, .24, czc + .43, G, false);
+  box(.06, .08, rz1 - rz0, brass, rx - .43, .3, (rz0 + rz1) / 2, G, false);
+  for (let z = rz0 + .3; z < rz1; z += 1.1) box(.04, .14, .04, brass, rx - .43, .24, z, G, false);
   // pastry case at the front end of the counter, near the window
   pastryCase(G, cxa + caseLen / 2, czc, caseLen, glassM, darkWood, chrome);
-  // on the counter: register, cake domes, bread basket, tip jar, napkins, a menu stand
-  vintageRegister(G, cxb - .7, 1.23, czc + .05, brass);
-  sign({ lines: [{ t: 'レジ', size: .6, color: '#FFFFFF' }], w: .42, h: .18, bg: '#5B3A2E', fg: '#FFF', frame: false }, cxb - .7, 1.95, czc, 0, hint.reji);
-  cyl(.004, .004, .5, blackM, cxb - .7, 2.3, czc, 4, G, false);
+  // the register sits on the return leg, so customers queue in the open floor in front of it
+  const regZ = za + 3.9;
+  vintageRegister(G, rx - .05, 1.23, regZ, brass, -Math.PI / 2);
+  sign({ lines: [{ t: 'レジ', size: .6, color: '#FFFFFF' }], w: .42, h: .18, bg: '#5B3A2E', fg: '#FFF', frame: false }, rx, 1.95, regZ, -Math.PI / 2, hint.reji);
+  cyl(.004, .004, .5, blackM, rx, 2.3, regZ, 4, G, false);
+  // on the counter: cake domes, bread basket, tip jar, napkins, a price card
   cakeDome(G, runA + .5, 1.23, czc + .1, glassM, '#F4A9BE'); cakeDome(G, runA + 1.2, 1.23, czc + .1, glassM, '#5A3420');
-  breadBasket(G, runA + 2.1, 1.23, czc, T);
-  cyl(.07, .07, .16, glassM, cxb - 1.5, 1.31, czc + .2, 12, G, false); for (let i = 0; i < 4; i++) cyl(.03, .03, .004, brass, cxb - 1.5 + range(-.03, .03), 1.24 + i * .012, czc + .2, 8, G, false);
-  box(.14, .1, .07, metal('#9AA0A8'), cxb - 1.9, 1.28, czc + .25, G, false);
-  sign({ lines: [{ t: 'コーヒー', size: .2, color: '#3A2A22' }, { t: '300円', size: .2, color: '#C0392B' }], top: .5, gap: .4, w: .22, h: .3, bg: '#FFF8EC', fg: '#3A2A22', frameColor: '#6E4F3E' }, runA + 2.9, 1.39, czc + .3, 0, hint.kohi);
-  // bar stools in front of the counter
-  for (let x = runA + .6; x < cxb - .4; x += .95) barStool(G, x, czc + .95, blackM, darkWood);
+  breadBasket(G, runA + 2.0, 1.23, czc, T);
+  cyl(.07, .07, .16, glassM, rx - .2, 1.31, regZ + .6, 12, G, false); for (let i = 0; i < 4; i++) cyl(.03, .03, .004, brass, rx - .2 + range(-.03, .03), 1.24 + i * .012, regZ + .6, 8, G, false);
+  box(.07, .1, .14, metal('#9AA0A8'), rx - .25, 1.28, regZ - .55, G, false);
+  sign({ lines: [{ t: 'コーヒー', size: .2, color: '#3A2A22' }, { t: '300円', size: .2, color: '#C0392B' }], top: .5, gap: .4, w: .22, h: .3, bg: '#FFF8EC', fg: '#3A2A22', frameColor: '#6E4F3E' }, rx - .3, 1.39, regZ + .95, -Math.PI / 2, hint.kohi);
 
   // ---------- back bar against the brick wall: espresso machine, grinders, cups, jars
   const bzc = za + .38;
-  const bbFront = std('#ffffff', { map: tex(T.panelWood, (xb - .3 - cxa) / .9, 1) });
-  box(xb - .3 - cxa, .92, .62, [darkWood, darkWood, darkWood, darkWood, bbFront, darkWood], (cxa + xb - .3) / 2, .62, bzc, G);
-  box(xb - .3 - cxa + .05, .05, .68, std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 }), (cxa + xb - .3) / 2, 1.105, bzc + .02, G);
+  const bbEnd = xb + .08, bbFront = std('#ffffff', { map: tex(T.panelWood, (bbEnd - cxa) / .9, 1) });
+  box(bbEnd - cxa, .92, .62, [darkWood, darkWood, darkWood, darkWood, bbFront, darkWood], (cxa + bbEnd) / 2, .62, bzc, G);
+  box(bbEnd - cxa, .05, .68, std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 }), (cxa + bbEnd) / 2, 1.105, bzc + .02, G);
   espressoMachine(G, fx + 6.0, 1.13, bzc, chrome, blackM, white);
   grinder(G, fx + 5.15, 1.13, bzc, blackM, glassM); grinder(G, fx + 6.85, 1.13, bzc, chrome, glassM);
   for (let i = 0; i < 3; i++) cafeCup(G, fx + 4.2 + i * .16, 1.13, bzc + .15, white);
@@ -1509,16 +1551,17 @@ function cafeInterior(B) {
     if (rand() < .5) { box(.2, .02, .28, std('#F4EEDF'), x - .12, .955, z + .12, G, false); }
     else { cyl(.1, .1, .01, white, x - .1, .95, z + .12, 14, G, false); mesh(new THREE.TorusGeometry(.04, .02, 6, 10, Math.PI), std('#D99A4A'), x - .1, .97, z + .12, G, false).rotation.x = -Math.PI / 2; }
   };
-  const chair = (x, z, tx, tz) => { const c = group(x, .16, z, Math.atan2(tx - x, tz - z)); G.add(c); woodChair(c, darkWood); };
-  for (const [x, z] of [[fx + 2.6, zb - 1.5], [fx + 2.6, zb - 3.9]]) {
-    table(x, z); chair(x - .7, z, x, z); chair(x + .7, z, x, z);
-  }
-  // banquette (bench seat) along the far wall with small square tables
-  const bench = std('#6A2E2A', { roughness: .45 });
-  box(3.4, .45, .55, darkWood, fx + 6.2, .38, zb - .3, G);
-  box(3.4, .12, .55, bench, fx + 6.2, .66, zb - .3, G);
-  box(3.4, .5, .12, bench, fx + 6.2, 1.0, zb - .06, G);
-  for (const x of [fx + 5.3, fx + 7.1]) { table(x, zb - 1.15, true); chair(x, zb - 1.85, x, zb - 1.15); }
+  const chair = (x, z, tx, tz) => { const ry = Math.atan2(tx - x, tz - z), c = group(x, .16, z, ry); G.add(c); woodChair(c, darkWood); addSeat(x, z, ry, 1.15); };
+  // banquette (bench seat) along the far wall with two small square tables
+  const bench = std('#6A2E2A', { roughness: .45 }), bx = fx + 5.2, bl = 3.0;
+  box(bl, .45, .55, darkWood, bx, .38, zb - .3, G);
+  box(bl, .12, .55, bench, bx, .66, zb - .3, G);
+  box(bl, .5, .12, bench, bx, 1.0, zb - .06, G);
+  const sqT = [fx + 4.4, fx + 6.0];
+  for (const x of sqT) { table(x, zb - 1.15, true); chair(x, zb - 1.85, x, zb - 1.15); addSeat(x, zb - .4, Math.PI, 1.15); }   // a place on the banquette at each table
+  // a table for two in the middle, behind the register queue
+  const t2x = fx + 4.0, t2z = za + 5.2;
+  table(t2x, t2z); chair(t2x - .7, t2z, t2x, t2z); chair(t2x + .7, t2z, t2x, t2z);
   // pendant lights: metal shades over the counter, Edison bulbs over the tables
   const bulb = glowMat(null, null, 1.4, 2.4, { color: '#FFE2B0', emissive: 0xffc070 });
   const shadeM = new THREE.MeshStandardMaterial({ color: '#2E4A3E', side: THREE.DoubleSide, roughness: .35, metalness: .6 });
@@ -1527,75 +1570,145 @@ function cafeInterior(B) {
     if (kind === 'shade') { mesh(new THREE.SphereGeometry(.24, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), shadeM, x, H - len - .02, z, G, false); mesh(new THREE.SphereGeometry(.06, 10, 8), bulb, x, H - len - .08, z, G, false); }
     else { cyl(.02, .02, .05, brass, x, H - len, z, 8, G, false); const bb = mesh(new THREE.SphereGeometry(.065, 12, 8), bulb, x, H - len - .08, z, G, false); bb.scale.y = 1.3; }
   };
-  for (let x = runA + .3; x < cxb; x += 1.4) pendant(x, czc, 'shade', .85);
-  for (const [x, z] of [[fx + 2.6, zb - 1.5], [fx + 2.6, zb - 3.9], [fx + 5.3, zb - 1.15], [fx + 7.1, zb - 1.15]]) pendant(x, z, 'bulb', range(.8, 1.15));
-  for (const z of [za + 1.4, za + 3.8, zb - 1.0, zb - 3.2]) pendant(fx + .8, z, 'bulb', range(.6, .9));
+  for (let x = runA + .3; x < cxe; x += 1.3) pendant(x, czc, 'shade', .85);
+  for (const z of [regZ - .6, regZ + .6]) pendant(rx, z, 'shade', .85);
+  for (const [x, z] of [[t2x, t2z], [sqT[0], zb - 1.15], [sqT[1], zb - 1.15]]) pendant(x, z, 'bulb', range(.8, 1.15));
+  for (const z of [za + 1.4, zb - 1.2]) pendant(fx + .8, z, 'bulb', range(.6, .9));
 
   // ---------- decor on the plaster walls
-  for (const [x, w, h] of [[fx + 4.6, .55, .7], [fx + 7.4, .9, .6], [fx + 9.6, .5, .5]]) { box(w + .08, h + .08, .04, darkWood, x, 2.3, zb - .02, G, false); mesh(new THREE.PlaneGeometry(w, h), std('#ffffff', { map: pick(T.pictures) }), x, 2.3, zb - .045, G, false).rotation.y = Math.PI; }
-  box(1.6, .04, .22, wood, fx + 2.6, 2.05, zb - .12, G);
-  { const pp = plantPot(0, 0, 0, .5); pp.position.set(fx + 2.2, 2.07, zb - .12); G.add(pp); teapot(G, fx + 2.7, 2.07, zb - .12, std('#E8C0A0', { roughness: .3 })); for (let k = 0; k < 3; k++) box(.05, .22, .15, std(pick(['#C0392B', '#2F6FB8', '#3C9D5D'])), fx + 3.1 + k * .06, 2.18, zb - .12, G, false); }
-  // bookshelf and restroom on the back wall
-  const sh = group(xb - .2, .16, zb - 4.6, -Math.PI / 2); G.add(sh);
-  for (const sx of [-1.1, 1.1]) box(.06, 2.3, .35, darkWood, sx, 1.15, 0, sh);
-  for (let k = 0; k < 5; k++) {
-    const y = .1 + k * .55; box(2.26, .04, .35, darkWood, 0, y, 0, sh);
-    if (k === 4) continue;
-    let x = -1.02;
-    while (x < 1.0) { const t = rand();
-      if (t < .7) { const bw = range(.04, .08), bh = range(.25, .42); box(bw, bh, .24, std(pick(['#8A2E22', '#2F4F6F', '#B08A3A', '#3C6D4D', '#EFE6D6', '#5A3E2B', '#7A4A6A'])), x + bw / 2, y + .02 + bh / 2, 0, sh, false); x += bw + .01; }
-      else if (t < .85) { box(.26, .3, .03, darkWood, x + .13, y + .17, -.05, sh, false); x += .32; }
-      else { const pp = plantPot(0, 0, 0, .45); pp.position.set(x + .12, y + .02, 0); sh.add(pp); x += .3; } }
+  for (const [x, w, h] of [[sqT[0], .55, .7], [sqT[1], .9, .6]]) { box(w + .08, h + .08, .04, darkWood, x, 2.3, zb - .02, G, false); mesh(new THREE.PlaneGeometry(w, h), std('#ffffff', { map: pick(T.pictures) }), x, 2.3, zb - .045, G, false).rotation.y = Math.PI; }
+  box(1.6, .04, .22, wood, fx + 2.5, 2.05, zb - .12, G);
+  { const pp = plantPot(0, 0, 0, .5); pp.position.set(fx + 2.1, 2.07, zb - .12); G.add(pp); teapot(G, fx + 2.6, 2.07, zb - .12, std('#E8C0A0', { roughness: .3 })); for (let k = 0; k < 3; k++) box(.05, .22, .15, std(pick(['#C0392B', '#2F6FB8', '#3C9D5D'])), fx + 3.0 + k * .06, 2.18, zb - .12, G, false); }
+  // restroom door on the side wall, past the end of the counter
+  // door casing, and a real hinged door you can open (it swings into the restroom)
+  for (const zz of [rdz - rdw - .04, rdz + rdw + .04]) box(.08, 2.15, .08, darkWood, xb + .06, .16 + 1.075, zz, G);
+  box(.08, .09, 2 * rdw + .16, darkWood, xb + .06, 2.3, rdz, G);
+  box(.24, .012, 2 * rdw, darkWood, xb + .2, .166, rdz, G, false);
+  sign({ lines: [{ t: 'お手洗い', size: .5, color: '#FFFFFF' }], w: .6, h: .2, bg: '#5B3A2E', fg: '#FFF', frame: false }, xb + .01, 2.52, rdz, -Math.PI / 2, hint.otearai);
+  { const dg = group(xb + .14, .16, rdz - rdw + .02); G.add(dg);
+    box(.04, 2.08, 2 * rdw - .04, std('#ffffff', { map: T.panelGreen }), 0, 1.04, rdw - .02, dg);
+    box(.045, 2.08, .04, darkWood, 0, 1.04, .02, dg); box(.045, 2.08, .04, darkWood, 0, 1.04, 2 * rdw - .06, dg);
+    for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(.035, 8, 6), brass, sx * .05, .98, 2 * rdw - .12, dg, false);
+    // little occupied/vacant window by the handle
+    box(.05, .05, .1, std('#3C9D5D', { emissive: 0x3C9D5D, emissiveIntensity: .4 }), -.01, 1.12, 2 * rdw - .12, dg, false);
+    dg.traverse(o => { if (o.isMesh) o.userData.noCollide = true; }); dynAll(dg);
+    restroom.door = dg; restroom.x = xb + .14; restroom.z0 = rdz - rdw; restroom.z1 = rdz + rdw;
   }
-  box(.08, 2.2, 1.0, darkWood, xb - .04, 1.26, za + 6.3, G);
-  box(.04, 2.05, .85, std('#ffffff', { map: T.panelGreen }), xb - .09, 1.2, za + 6.3, G);
-  { mesh(new THREE.SphereGeometry(.035, 8, 6), brass, xb - .13, 1.15, za + 6.0, G, false); }
-  sign({ lines: [{ t: 'お手洗い', size: .5, color: '#FFFFFF' }], w: .6, h: .2, bg: '#5B3A2E', fg: '#FFF', frame: false }, xb - .14, 2.05, za + 6.3, -Math.PI / 2, hint.otearai);
-  // back wall: self-service water station, framed pictures, wall shelf, lamps
-  const wz = za + 4.2;
-  box(.5, .85, 1.4, darkWood, xb - .27, .58, wz, G);
-  box(.55, .04, 1.45, std('#ffffff', { map: tex(T.grainTop, 1, 1) }), xb - .27, 1.02, wz, G);
-  cyl(.09, .08, .3, glassM, xb - .3, 1.19, wz - .4, 14, G, false); cyl(.08, .07, .2, std('#CFE6F2', { transparent: true, opacity: .5 }), xb - .3, 1.14, wz - .4, 14, G, false);
-  for (let i = 0; i < 6; i++) cyl(.035, .03, .1, glassM, xb - .35 + (i % 2) * .1, 1.09, wz - .05 + Math.floor(i / 2) * .12, 10, G, false);
-  box(.2, .06, .3, std('#F7F4EE'), xb - .3, 1.07, wz + .5, G, false);
+  addAction(xb, rdz, 1.6, () => restroom.target ? 'shimeru' : 'akeru', () => { restroom.target = 1 - restroom.target; });
+
+  // ---------- the restroom: small tiled room behind the door with a washlet toilet and a sink
+  { const x0 = xb + .3, x1 = xb + 2.3, z0 = rdz - 1.0, z1 = rdz + 1.35, CH = 2.6, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    const tileT = canvasTex(256, 256, (g, W) => { g.fillStyle = '#B9C2C0'; g.fillRect(0, 0, W, W); g.fillStyle = '#F4F5F1'; for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) g.fillRect(i * 32 + 1.5, j * 32 + 1.5, 29, 29); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .03})`; g.fillRect(Math.random() * W, Math.random() * W, 3, 3); } });
+    const floorT = canvasTex(256, 256, (g, W) => { g.fillStyle = '#5E6266'; g.fillRect(0, 0, W, W); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#8C9296' : '#7E8488'; g.fillRect(i * 64 + 2, j * 64 + 2, 60, 60); } });
+    const tiles = (w, h) => std('#ffffff', { map: tex(tileT, w / .5, h / .5), roughness: .25 });
+    const plaster = std('#F1ECE0', { roughness: .9 }), white = std('#FBFBF8', { roughness: .15 }), cream = std('#EFE9DC', { roughness: .3 });
+    const fl3 = mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), std('#ffffff', { map: tex(floorT, 2, 2), roughness: .4 }), mx, .162, mz, G, false); fl3.rotation.x = -Math.PI / 2;
+    box(x1 - x0 + .2, .06, z1 - z0 + .2, plaster, mx, CH, mz, G, false);
+    // walls: tiles to 1.3 m, plaster above
+    box(.1, 1.14, z1 - z0, tiles(z1 - z0, 1.14), x1 + .05, .16 + .57, mz, G); box(.1, CH - 1.3, z1 - z0, plaster, x1 + .05, (1.3 + CH) / 2, mz, G);
+    for (const zz of [z0 - .05, z1 + .05]) { box(x1 - x0, 1.14, .1, tiles(x1 - x0, 1.14), mx, .16 + .57, zz, G); box(x1 - x0, CH - 1.3, .1, plaster, mx, (1.3 + CH) / 2, zz, G); }
+    // ceiling light
+    mesh(new THREE.BoxGeometry(.5, .03, .5), glowMat(null, null, 1.5, 2.5, { color: '#FFFDF4', emissive: 0xfff6e0 }), mx, CH - .04, mz, G, false);
+    const rl = new THREE.PointLight(0xfff4e0, 4, 5, 1.4); rl.position.set(mx, CH - .3, mz); scene.add(rl); cafeLights.push(rl);
+
+    // washlet toilet against the back wall, facing the door
+    const tz = rdz + .6, tg = group(x1 - .02, .16, tz, -Math.PI / 2); G.add(tg);
+    const s3 = (m, sx, sz) => { m.scale.set(sx, 1, sz); return m; };
+    s3(cyl(.16, .2, .38, white, 0, .19, .38, 20, tg), 1, 1.25);                               // pedestal
+    s3(cyl(.21, .17, .1, white, 0, .43, .42, 22, tg), 1, 1.3);                                // bowl rim
+    const bowlWater = s3(cyl(.15, .15, .01, std('#BFE3F0', { roughness: .05, metalness: .1 }), 0, .475, .43, 20, tg, false), 1, 1.25);
+    const seatR = mesh(new THREE.TorusGeometry(.17, .028, 8, 24), cream, 0, .495, .43, tg, false); seatR.rotation.x = Math.PI / 2; seatR.scale.set(1, 1.3, 1);
+    const lid = box(.38, .5, .03, cream, 0, .76, .15, tg); lid.rotation.x = -.15;
+    box(.44, .1, .22, cream, 0, .5, .14, tg);                                                    // washlet unit
+    box(.44, .46, .2, white, 0, .78, .08, tg); box(.46, .04, .22, white, 0, 1.03, .08, tg);       // tank and lid
+    // the little hand-wash spout on top of the tank (very Japanese)
+    s3(cyl(.12, .09, .04, white, 0, 1.06, .08, 16, tg, false), 1, .8); const sp = cyl(.012, .012, .14, std('#D9DDE2', { metalness: .85, roughness: .2 }), 0, 1.13, -.0, 8, tg, false); sp.rotation.x = .6;
+    const lever = box(.1, .025, .025, std('#D9DDE2', { metalness: .85, roughness: .2 }), -.24, .92, .14, tg, false);
+    dynAll(bowlWater); dynAll(lever);
+    // control panel on the side wall: 止 / おしり / ビデ / 流す (tap it to learn 流す)
+    const panelT = canvasTex(160, 220, (g, W, Hh) => {
+      g.fillStyle = '#F3F1EA'; g.fillRect(0, 0, W, Hh); g.strokeStyle = '#C9C5B9'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, Hh - 4);
+      const btn = (x, y, r, c, t, tc = '#fff', fs = 22) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.fillStyle = tc; g.font = `900 ${fs}px "Zen Maru Gothic"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x, y + 1); };
+      btn(W / 2, 38, 26, '#E8632B', '止', '#fff', 26);
+      btn(48, 100, 24, '#3F7FC0', 'おしり', '#fff', 13); btn(W - 48, 100, 24, '#D9679A', 'ビデ', '#fff', 15);
+      g.fillStyle = '#2E5E8C'; g.beginPath(); g.roundRect(22, 146, W - 44, 56, 12); g.fill(); g.fillStyle = '#fff'; g.font = '900 26px "Zen Maru Gothic"'; g.textAlign = 'center'; g.fillText('流す', W / 2, 176);
+    });
+    sign({ tex: panelT, w: .16, h: .22, frameColor: '#D9D6CF', day: .35, night: .5 }, x1 - .4, .95, z1 - .02, Math.PI, hint.nagasu);
+    // toilet paper holder
+    box(.16, .03, .12, std('#D9DDE2', { metalness: .85, roughness: .2 }), x1 - .75, .8, z1 - .06, G, false);
+    { const r = cyl(.06, .06, .11, white, x1 - .75, .73, z1 - .08, 14, G, false); r.rotation.z = Math.PI / 2; }
+    // sink on the other wall, mirror, soap, towel
+    // sink on the wall to your right as you walk in (the door swings open to the left)
+    const sx2 = x0 + .75, sz2 = z1 - .22;
+    s3(cyl(.24, .14, .14, white, sx2, .86, sz2 - .02, 22, G), 1, .8);
+    const faucet = std('#D9DDE2', { metalness: .4, roughness: .25 });
+    cyl(.02, .025, .16, faucet, sx2, 1.0, sz2 + .12, 10, G, false); box(.03, .03, .12, faucet, sx2, 1.08, sz2 + .07, G, false);
+    const stream = cyl(.008, .008, .16, new THREE.MeshStandardMaterial({ color: '#CFEAF5', transparent: true, opacity: .7, roughness: .05 }), sx2, .99, sz2 + .02, 8, G, false);
+    stream.visible = false; dynAll(stream);
+    { const mt = canvasTex(128, 160, (g, W, Hh) => { const gr = g.createLinearGradient(0, 0, W, Hh); gr.addColorStop(0, '#E9F1F4'); gr.addColorStop(.5, '#C9D7DE'); gr.addColorStop(1, '#AFC0C8'); g.fillStyle = gr; g.fillRect(0, 0, W, Hh); g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(20, 0); g.lineTo(50, 0); g.lineTo(10, 70); g.lineTo(0, 70); g.fill(); g.beginPath(); g.moveTo(70, 0); g.lineTo(82, 0); g.lineTo(30, 100); g.lineTo(22, 100); g.fill(); });
+      const mr = mesh(new THREE.PlaneGeometry(.6, .7), std('#ffffff', { map: mt, roughness: .1, metalness: .1 }), sx2, 1.55, z1 - .025, G, false); mr.rotation.y = Math.PI; }
+    box(.66, .76, .015, std('#BFC5C9', { metalness: .6, roughness: .3 }), sx2, 1.55, z1 - .005, G, false);
+    cyl(.03, .035, .14, std('#F0C4D0', { roughness: .3 }), sx2 - .3, .99, sz2 + .1, 10, G, false);
+    cyl(.012, .012, .3, faucet, x0 + .2, 1.25, z1 - .07, 8, G, false).rotation.z = Math.PI / 2;
+    box(.24, .4, .03, std('#E6EEF2', { roughness: .9 }), x0 + .2, 1.05, z1 - .09, G, false);
+    // spare paper rolls on a little shelf on the other wall
+    box(.5, .03, .18, std('#ffffff', { map: tex(T.grainTop, 1, 1) }), x1 - .55, 1.55, z0 + .1, G, false);
+    for (let k = 0; k < 3; k++) { const r = cyl(.055, .055, .1, white, x1 - .72 + k * .14, 1.62, z0 + .1, 14, G, false); }
+    // the classic sign
+    sign({ lines: [{ t: 'いつもきれいにご利用', size: .2, color: '#3A5A7A' }, { t: 'ありがとうございます', size: .2, color: '#3A5A7A' }], gap: .32, w: .5, h: .3, bg: '#FFFFFF', fg: '#3A5A7A', frameColor: '#C9C5B9' }, x1 - .01, 1.75, tz, -Math.PI / 2, hint.kirei);
+    // a small plant and a sanitary bin
+    { const pp = plantPot(0, 0, 0, .5); pp.position.set(x1 - .12, 1.22, tz + .16); G.add(pp); }
+    cyl(.09, .08, .28, std('#E8E4DC', { roughness: .4 }), x1 - .2, .3, tz + .45, 14, G);
+
+    // flush: the lever dips and the bowl water swirls down and refills
+    addAction(x1 - .55, tz, 1.6, () => 'nagasu', () => playAnim(2.2, k => {
+      lever.rotation.z = k < .15 ? -k / .15 * .5 : k < .3 ? -.5 * (1 - (k - .15) / .15) : 0;
+      bowlWater.rotation.y += .4; const d = k < .5 ? k / .5 : 1 - (k - .5) / .5; bowlWater.scale.set(1 - d * .6, 1, 1.25 * (1 - d * .6)); bowlWater.position.y = .475 - d * .04;
+    }));
+    // wash your hands: the tap runs for a moment
+    addAction(sx2, sz2 - .05, 1.2, () => 'arau', () => playAnim(2.4, k => { stream.visible = k > .05 && k < .9; stream.scale.y = .9 + Math.sin(k * 60) * .1; }));
+    restroom.x1 = x1; restroom.rz0 = z0; restroom.rz1 = z1;
+  }
+  // self-service water station in the far corner, a picture above it, wall lamps
+  const wz = zb - .75;
+  box(.5, .85, 1.0, darkWood, xb - .27, .58, wz, G);
+  box(.55, .04, 1.05, std('#ffffff', { map: tex(T.grainTop, 1, 1) }), xb - .27, 1.02, wz, G);
+  // the pitcher and one glass are their own objects so they can move when you pour
+  const waterM = new THREE.MeshStandardMaterial({ color: '#BFE2F2', transparent: true, opacity: .6, roughness: .05 });
+  { const pg = group(xb - .3, 1.04, wz - .3); G.add(pg);
+    cyl(.09, .08, .3, glassM, 0, .15, 0, 14, pg, false);
+    const pw = cyl(.08, .07, .2, waterM, 0, 0, 0, 14, pg, false); pw.geometry.translate(0, .1, 0); pw.position.y = .005;
+    const lip = box(.05, .02, .06, glassM, 0, .29, .1, pg, false);
+    dynAll(pg); water.pitcher = pg; water.pitcherWater = pw; water.home = pg.position.clone(); }
+  for (let i = 1; i < 6; i++) cyl(.035, .03, .1, glassM, xb - .35 + (i % 2) * .1, 1.09, wz - .05 + Math.floor(i / 2) * .12, 10, G, false);
+  { const gg = group(xb - .35, 1.04, wz - .05); G.add(gg);
+    cyl(.035, .03, .1, glassM, 0, .05, 0, 10, gg, false);
+    const gw = cyl(.03, .026, .08, waterM, 0, .005, 0, 10, gg, false); gw.geometry.translate(0, .04, 0); gw.scale.y = .001;
+    const st = cyl(.007, .007, 1, waterM, 0, 0, 0, 8, G, false); st.visible = false;
+    dynAll(gg); dynAll(st); water.glass = gg; water.glassWater = gw; water.stream = st; water.glassHome = gg.position.clone(); water.spot = new THREE.Vector3(xb - .32, 1.04, wz + .12); }
+  addAction(xb - .3, wz, 1.5, () => 'sosogu', pourWater, () => !holding);
+  box(.2, .06, .2, std('#F7F4EE'), xb - .3, 1.07, wz + .38, G, false);
   sign({ lines: [{ t: 'お水は', size: .3, color: '#3A2A22' }, { t: 'セルフサービス', size: .22, color: '#2F6FB8' }], top: .5, gap: .42, w: .55, h: .4, bg: '#FFF8EC', fg: '#3A2A22', frameColor: '#6E4F3E' }, xb - .06, 1.5, wz, -Math.PI / 2, hint.omizu);
-  for (const [z, w, h, y] of [[za + 7.6, .5, .65, 2.3], [za + 9.0, 1.1, .75, 2.35], [za + 10.4, .5, .5, 2.4]]) { box(.04, h + .08, w + .08, darkWood, xb - .02, y, z, G, false); const pic = mesh(new THREE.PlaneGeometry(w, h), std('#ffffff', { map: pick(T.pictures) }), xb - .045, y, z, G, false); pic.rotation.y = -Math.PI / 2; }
-  box(.22, .04, 1.4, wood, xb - .12, 1.85, za + 9.0, G);
-  { const pp = plantPot(0, 0, 0, .5); pp.position.set(xb - .12, 1.87, za + 8.5); G.add(pp); for (let k = 0; k < 3; k++) cafeCup(G, xb - .12, 1.87, za + 9.0 + k * .14, white, true); jarOfBeans(G, xb - .12, 1.87, za + 9.5, glassM, T); }
+  { const w = .6, h = .55, y = 2.35; box(.04, h + .08, w + .08, darkWood, xb - .02, y, wz, G, false); const pic = mesh(new THREE.PlaneGeometry(w, h), std('#ffffff', { map: pick(T.pictures) }), xb - .045, y, wz, G, false); pic.rotation.y = -Math.PI / 2; }
   const sconce = glowMat(null, null, 1.2, 2.2, { color: '#FFE2B0', emissive: 0xffc070 });
-  for (const z of [za + 5.3, za + 11.4, zb - 2.2]) { box(.12, .2, .1, brass, xb - .06, 2.0, z, G, false); mesh(new THREE.SphereGeometry(.07, 10, 8), sconce, xb - .16, 2.1, z, G, false); }
-  // the middle of the room: a long communal table on a rug
-  const rug = (x, z, w, d, t) => { const r = mesh(new THREE.PlaneGeometry(w, d), std('#ffffff', { map: t, roughness: 1 }), x, .165, z, G, false); r.rotation.x = -Math.PI / 2; r.userData.noCollide = true; };
-  rug(fx + 5.0, dz + 1.2, 2.4, 3.8, T.rugRed);
-  { const tx = fx + 5.0, tz = dz + 1.2;
-    box(.95, .06, 2.6, wood, tx, .93, tz, G);
-    for (const [a2, b2] of [[-.38, -1.15], [.38, -1.15], [-.38, 1.15], [.38, 1.15]]) box(.08, .76, .08, darkWood, tx + a2, .54, tz + b2, G);
-    box(.06, .06, 2.2, darkWood, tx, .35, tz, G);
-    for (const zz of [-.85, 0, .85]) for (const sx of [-1, 1]) chair(tx + sx * .78, tz + zz, tx, tz + zz);
-    for (const zz of [-.9, .2]) cafeCup(G, tx + .2, .96, tz + zz, white);
-    cyl(.05, .04, .2, glassM, tx, 1.06, tz, 10, G, false); for (let k = 0; k < 3; k++) { const st2 = cyl(.004, .004, .3, std('#4E8F49'), tx + range(-.02, .02), 1.2, tz + range(-.02, .02), 4, G, false); mesh(new THREE.SphereGeometry(.03, 8, 6), std(pick(['#FFFFFF', '#F4A9BE', '#FFE08A'])), st2.position.x, 1.36, st2.position.z, G, false); }
-    box(.25, .03, .32, std('#F4EEDF'), tx - .2, .975, tz + .7, G, false);
-    sign({ lines: [{ t: 'メニュー', size: .3, color: '#3A2A22' }, { t: 'MENU', size: .2, color: '#C0392B' }], top: .45, gap: .4, w: .16, h: .22, bg: '#FFF8EC', fg: '#3A2A22', frameColor: '#6E4F3E' }, tx, 1.07, tz - .3, Math.PI / 2, hint.menu);
-    for (const zz of [-.7, .7]) pendant(tx, tz + zz, 'shade', .8);
-  }
-  // lounge corner: two armchairs, a low table, a floor lamp, on a round rug
-  { const lx = fx + 5.9, lz = za + 5.0;
+  for (const z of [za + 5.2, za + 7.05]) { box(.12, .2, .1, brass, xb - .06, 2.0, z, G, false); mesh(new THREE.SphereGeometry(.07, 10, 8), sconce, xb - .16, 2.1, z, G, false); }
+  // armchair nook in the window corner: two armchairs, a low table, a floor lamp, on a round rug
+  { const lx = fx + 2.5, lz = zb - 1.5;
     const rr = mesh(new THREE.CircleGeometry(1.3, 32), std('#ffffff', { map: T.rugRound, roughness: 1 }), lx, .165, lz, G, false); rr.rotation.x = -Math.PI / 2; rr.userData.noCollide = true;
-    armchair(G, lx - .7, lz + .25, .6); armchair(G, lx + .7, lz + .25, -.6);
+    for (const sx of [-1, 1]) { const ax = lx + sx * .7, az = lz + .25; armchair(G, ax, az, Math.atan2(lx - ax, lz - .25 - az)); }   // both face the low table
     cyl(.35, .35, .04, wood, lx, .58, lz - .25, 20, G); cyl(.04, .04, .4, darkWood, lx, .38, lz - .25, 8, G); cyl(.2, .2, .03, darkWood, lx, .18, lz - .25, 14, G);
     cafeCup(G, lx - .1, .6, lz - .2, white); teapot(G, lx + .12, .6, lz - .3, std('#E8C0A0', { roughness: .3 }));
     box(.18, .04, .26, std('#3A5A7A'), lx, .62, lz - .05, G, false);
-    const fl2 = group(lx + 1.25, .16, lz + .7); G.add(fl2); cyl(.15, .17, .03, brass, 0, .015, 0, 14, fl2); cyl(.015, .015, 1.5, brass, 0, .76, 0, 6, fl2, false);
+    const fl2 = group(lx, .16, lz + .85); G.add(fl2);                 // lamp tucked between the armchairs
+    cyl(.15, .17, .03, brass, 0, .015, 0, 14, fl2); cyl(.015, .015, 1.5, brass, 0, .76, 0, 6, fl2, false);
     mesh(new THREE.CylinderGeometry(.13, .2, .26, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#F4E2C4', side: THREE.DoubleSide, emissive: 0xffc070, emissiveIntensity: .5 }), 0, 1.55, 0, fl2, false);
   }
-  // a round table near the window and a tall plant, a coat rack by the door
-  table(fx + 2.8, za + 5.3); chair(fx + 2.1, za + 5.3, fx + 2.8, za + 5.3); chair(fx + 3.5, za + 5.3, fx + 2.8, za + 5.3); pendant(fx + 2.8, za + 5.3, 'bulb', .9);
-  // big plants in the corners
-  for (const [x, z] of [[fx + 1.0, za + .55]]) { const bp = plantPot(0, 0, 0, 1.7); bp.position.set(x, .16, z); G.add(bp); }
+  // a tall plant in the corner by the window
+  { const bp = plantPot(0, 0, 0, 1.7); bp.position.set(fx + 2.05, .16, za + .45); G.add(bp); }
 
   // ---------- warm light inside
-  for (const [x, z] of [[3.0, zb - 3], [6.2, zb - 2], [5.0, za + 2.5], [5.5, dz + 1.2], [5.9, za + 5.0]]) { const l = new THREE.PointLight(0xffc890, 4, 10, 1.3); l.position.set(fx + x, H - .5, z); scene.add(l); cafeLights.push(l); }
-  claim(1, 'wall', dz - 1.2, dz + 1.2);
+  for (const [x, z] of [[5.0, za + 2.5], [2.5, zb - 1.5], [5.2, zb - 1.3], [4.0, za + 5.2]]) { const l = new THREE.PointLight(0xffc890, 4, 10, 1.3); l.position.set(fx + x, H - .5, z); scene.add(l); cafeLights.push(l); }
+  claim(1, 'wall', dz - DW - .4, dz + DW + .4);
 
 }
 const cafeLights = [];
@@ -1684,6 +1797,80 @@ function cafeTex() {
   T.rugRed = rugTex('#7A2E2A', '#D9B070', '#A84A3A');
   T.rugRound = canvasTex(256, 256, (g, W) => { for (let r = 128; r > 0; r -= 14) { g.fillStyle = (r / 14) % 2 ? '#3E5A4A' : '#C9B080'; g.beginPath(); g.arc(128, 128, r, 0, 7); g.fill(); } for (let i = 0; i < 1500; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .07})`; g.fillRect(Math.random() * W, Math.random() * W, 2, 2); } });
   return _cafeTex = T;
+}
+// the café's brand: カフェ みなと, MINATO COFFEE, since 1987
+function cupIconBrand(g, x, y, s, col) {
+  g.strokeStyle = col; g.fillStyle = col; g.lineWidth = s * .12; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(x - s * .55, y - s * .2); g.lineTo(x - s * .45, y + s * .45); g.quadraticCurveTo(x, y + s * .62, x + s * .45, y + s * .45); g.lineTo(x + s * .55, y - s * .2); g.closePath(); g.fill();
+  g.beginPath(); g.arc(x + s * .62, y + s * .08, s * .2, -1.3, 1.3); g.stroke();
+  g.beginPath(); g.ellipse(x, y + s * .68, s * .8, s * .1, 0, 0, 7); g.fill();
+  for (const dx of [-.22, 0, .22]) { g.beginPath(); g.moveTo(x + s * dx, y - s * .35); g.bezierCurveTo(x + s * (dx + .15), y - s * .55, x + s * (dx - .15), y - s * .7, x + s * dx, y - s * .95); g.stroke(); }
+}
+function brandEmblem(g, cx, cy, r, ink, paper, gold) {
+  g.fillStyle = gold; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+  g.fillStyle = paper; g.beginPath(); g.arc(cx, cy, r * .93, 0, 7); g.fill();
+  g.strokeStyle = ink; g.lineWidth = r * .03; g.beginPath(); g.arc(cx, cy, r * .62, 0, 7); g.stroke();
+  cupIconBrand(g, cx, cy + r * .05, r * .42, ink);
+  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `700 ${r * .17}px Georgia, serif`;
+  const ring = (txt, a0, a1, rad, flip) => { const n = txt.length; for (let i = 0; i < n; i++) { const a = a0 + (a1 - a0) * (i + .5) / n; g.save(); g.translate(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); g.rotate(a + (flip ? -Math.PI / 2 : Math.PI / 2)); g.fillText(txt[i], 0, 0); g.restore(); } };
+  ring('MINATO COFFEE', -Math.PI * .9, -Math.PI * .1, r * .78, false);
+  ring('SINCE 1987', Math.PI * .78, Math.PI * .22, r * .78, true);
+  for (const a of [Math.PI, 0]) { g.beginPath(); g.arc(cx + Math.cos(a) * r * .78, cy + Math.sin(a) * r * .78, r * .045, 0, 7); g.fill(); }
+}
+let _logoTex, _autoTex;
+function cafeLogoTex() { return _logoTex ??= canvasTex(256, 256, (g, W) => { g.clearRect(0, 0, W, W); brandEmblem(g, 128, 128, 124, '#3E2820', 'rgba(255,248,236,.92)', '#C9A45A'); }); }
+function autoDoorTex() { return _autoTex ??= canvasTex(256, 60, (g, W, H) => { g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H); g.fillStyle = '#2F6FB8'; g.fillRect(0, 0, W, 8); g.fillRect(0, H - 8, W, 8); g.font = '900 30px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('自動ドア', W / 2, H / 2 + 1); }); }
+function cafeFrontSign(B, z) {
+  const w = 5.2, h = 1.05, y = B.groundH + .6, ry = B.n > 0 ? Math.PI / 2 : -Math.PI / 2;
+  const tex = canvasTex(w * 220, h * 220, (g, W, H) => {
+    // walnut board with grain
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#4A3024'); bg.addColorStop(.5, '#3B2519'); bg.addColorStop(1, '#2C1B12'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 70; i++) { const yy = rand() * H; g.strokeStyle = `rgba(${rand() < .5 ? '0,0,0' : '120,80,50'},${.06 + rand() * .08})`; g.lineWidth = 1 + rand() * 2; g.beginPath(); g.moveTo(0, yy); for (let x = 0; x <= W; x += 60) g.lineTo(x, yy + Math.sin(x * .004 + i) * 6); g.stroke(); }
+    // gold double border with corner flourishes
+    const gold = '#D4B26A';
+    g.strokeStyle = gold; g.lineWidth = 6; g.strokeRect(16, 16, W - 32, H - 32); g.lineWidth = 2; g.strokeRect(28, 28, W - 56, H - 56);
+    for (const [cx, cy, sx, sy] of [[28, 28, 1, 1], [W - 28, 28, -1, 1], [28, H - 28, 1, -1], [W - 28, H - 28, -1, -1]]) { g.lineWidth = 3; g.beginPath(); g.arc(cx + sx * 22, cy + sy * 22, 14, 0, 7); g.stroke(); g.beginPath(); g.arc(cx + sx * 22, cy + sy * 22, 4, 0, 7); g.fillStyle = gold; g.fill(); }
+    // left emblem
+    brandEmblem(g, H * .62, H / 2, H * .38, '#3E2820', '#F4E2C4', gold);
+    // name: カフェ big, みなと beside it, English and tagline below
+    const tx = (H * 1.05 + W - H * 1.3) / 2, avail = W - H * 2.4;   // centred between emblem and plate
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    let k = 1; g.font = `900 ${H * .4}px "Zen Maru Gothic"`; let w1 = g.measureText('カフェ').width; g.font = `700 ${H * .26}px "Zen Maru Gothic"`; let w2 = g.measureText('みなと').width;
+    if (w1 + w2 + H * .12 > avail) k = avail / (w1 + w2 + H * .12); w1 *= k; w2 *= k;
+    const left = tx - (w1 + w2 + H * .12 * k) / 2, base = H * .56;
+    g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowOffsetY = 4; g.shadowBlur = 6;
+    g.textAlign = 'left'; g.fillStyle = '#FFF1D6'; g.font = `900 ${H * .4 * k}px "Zen Maru Gothic"`; g.fillText('カフェ', left, base);
+    g.fillStyle = gold; g.font = `700 ${H * .26 * k}px "Zen Maru Gothic"`; g.fillText('みなと', left + w1 + H * .12 * k, base);
+    g.shadowColor = 'transparent';
+    // rule with coffee beans
+    g.strokeStyle = gold; g.lineWidth = 2; const ry2 = H * .65;
+    g.beginPath(); g.moveTo(tx - avail * .42, ry2); g.lineTo(tx - 30, ry2); g.moveTo(tx + 30, ry2); g.lineTo(tx + avail * .42, ry2); g.stroke();
+    for (const dx of [-14, 14]) { g.save(); g.translate(tx + dx, ry2); g.rotate(dx > 0 ? .5 : -.5); g.fillStyle = gold; g.beginPath(); g.ellipse(0, 0, 9, 13, 0, 0, 7); g.fill(); g.strokeStyle = '#3B2519'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -11); g.quadraticCurveTo(4, 0, 0, 11); g.stroke(); g.restore(); }
+    g.textAlign = 'center'; g.fillStyle = '#F4E2C4'; g.font = `700 ${H * .11}px Georgia, serif`;
+    if (g.letterSpacing !== undefined) g.letterSpacing = `${H * .03}px`;
+    g.fillText('MINATO  COFFEE  &  TEA', tx, H * .8, avail * .92);
+    if (g.letterSpacing !== undefined) g.letterSpacing = '0px';
+    // right plate: house roast + hours
+    const px = W - H * .78, pw = H * .95, ph = H * .62;
+    g.fillStyle = 'rgba(244,226,196,.1)'; g.strokeStyle = gold; g.lineWidth = 2; g.beginPath(); g.roundRect(px - pw / 2, H / 2 - ph / 2, pw, ph, 12); g.fill(); g.stroke();
+    g.fillStyle = gold; g.font = `900 ${H * .13}px "Zen Maru Gothic"`; g.fillText('自家焙煎', px, H * .44);
+    g.fillStyle = '#F4E2C4'; g.font = `700 ${H * .075}px "Zen Maru Gothic"`; g.fillText('OPEN 8:00〜19:00', px, H * .6);
+    // weathering
+    const ev = g.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, W * .6); ev.addColorStop(0, 'rgba(0,0,0,0)'); ev.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = ev; g.fillRect(0, 0, W, H);
+  });
+  const g = sign({ tex, w, h, frameColor: '#2A1C16', day: .22, night: .55 }, B.out(.16), y, z, ry, hint.cafe);
+  const brass = std('#C9A45A', { roughness: .35, metalness: .7 });
+  // three gooseneck lamps washing the sign with warm light
+  const bulb = glowMat(null, null, 1.2, 3, { color: '#FFE2B0', emissive: 0xffc070 });
+  for (const dz2 of [-w / 3, 0, w / 3]) {
+    const zz = z + dz2;
+    box(.04, .1, .1, brass, B.out(.02), y + h / 2 + .12, zz, scene, false);
+    const arm = cyl(.02, .02, .62, brass, B.out(.3), y + h / 2 + .2, zz, 6, scene, false); arm.rotation.z = B.n * 1.35;
+    const sh = mesh(new THREE.ConeGeometry(.17, .2, 16, 1, true), std('#2E3A33', { side: THREE.DoubleSide, roughness: .4, metalness: .5 }), B.out(.62), y + h / 2 + .22, zz, scene, false);
+    sh.rotation.z = B.n * -.7;
+    mesh(new THREE.SphereGeometry(.055, 10, 8), bulb, B.out(.6), y + h / 2 + .15, zz, scene, false);
+  }
+  return g;
 }
 function cafeCup(parent, x, y, z, m, stacked) {
   if (!stacked) cyl(.07, .07, .01, m, x, y + .005, z, 14, parent, false);
@@ -1801,14 +1988,14 @@ function breadBasket(parent, x, y, z, T) {
   const b = box(.4, .14, .28, std('#ffffff', { map: T.wicker }), x, y + .07, z, parent, false);
   for (let i = 0; i < 4; i++) { const bg = mesh(new THREE.CapsuleGeometry(.03, .34, 4, 8), std('#D99A4A', { roughness: .6 }), x - .1 + i * .07, y + .2, z, parent, false); bg.rotation.set(.3, 0, Math.PI / 2 - .4 + i * .05); }
 }
-function vintageRegister(parent, x, y, z, brass) {
-  const g = group(x, y, z); parent.add(g);
+function vintageRegister(parent, x, y, z, brass, ry = 0) {
+  const g = group(x, y, z, ry); parent.add(g);
   box(.4, .14, .32, brass, 0, .07, 0, g); const top = box(.34, .16, .14, brass, 0, .2, -.06, g); top.rotation.x = -.3;
   for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) cyl(.015, .015, .02, std('#F4EEDF'), -.12 + c * .08, .15, .02 + r * .05, 8, g, false);
   box(.2, .06, .02, std('#1E1F25'), 0, .3, -.13, g, false);
 }
 function armchair(parent, x, z, ry) {
-  const c = group(x, .16, z, ry); parent.add(c);
+  const c = group(x, .16, z, ry); parent.add(c); addSeat(x, z, ry, 1.08);
   const leather = std('#B8604A', { roughness: .4 }), leg = std('#3A2A20');
   cyl(.38, .36, .3, leather, 0, .32, 0, 24, c);
   cyl(.34, .34, .08, std('#C8705A', { roughness: .45 }), 0, .5, .02, 24, c);
@@ -2130,12 +2317,16 @@ function buildStreet() {
   shopSign(B, '銭湯 さくらの湯', ['#2C3E73', '#FFFFFF', '#C0392B'], hint.yu, undefined, '営業 15:00〜24:00');
   blade(B, 'ゆ', ['#C0392B', '#FFFFFF'], hint.yu, 6.2, 1.0);
   // the café across the street from the school
-  B = building(1, 24, 6, { h: 10, wall: '#F3D9A5', style: 'tile', floors: 2, cols: 4, ground: 'shop', balcony: '#FFFFFF', lit: .8, interior: true, shutter: false, posters: false });
+  B = building(1, 24, 15, { h: 10, wall: '#F3D9A5', style: 'tile', floors: 2, cols: 2, ground: 'shop', balcony: '#FFFFFF', lit: .8, interior: true, shutter: false, posters: false });
   cafeInterior(B);
   awning(B, '#D8433F', '#FFFFFF');
-  sign({ lines: [{ t: 'カフェ', size: .5 }, { t: 'COFFEE & TEA', size: .17, weight: 700 }], top: .42, w: 4.5, h: .9, bg: '#5B3A2E', fg: '#FFF1D6', frameColor: '#3E2820', sub: 'OPEN 8:00〜19:00' }, B.out(.16), B.groundH + .55, 15, -Math.PI / 2, hint.cafe);
-  aboard(1, 12.5, [{ t: '本日の', size: .14, color: '#FFFFFF' }, { t: 'おすすめ', size: .16, color: '#FFE08A' }, { t: 'コーヒー', size: .14, color: '#FFFFFF' }, { t: '¥300', size: .14, color: '#9FE09A' }], hint.osusume);
-  plantCluster(1, 8); plantCluster(1, 21.5);
+  cafeFrontSign(B, B.zc);
+  blade(B, 'コーヒー', ['#3E2820', '#F4E2C4', '#C9A45A', '#2A1C16'], hint.kohi, undefined, 1.0);
+  aboard(1, 17.4, [{ t: '本日の', size: .14, color: '#FFFFFF' }, { t: 'おすすめ', size: .16, color: '#FFE08A' }, { t: 'コーヒー', size: .14, color: '#FFFFFF' }, { t: '¥300', size: .14, color: '#9FE09A' }], hint.osusume);
+  plantCluster(1, 16.0);
+  // the other half of the old café lot: a plain small shop next door
+  building(1, 15, 6, { h: 12, wall: '#E6DCCB', style: 'plaster', floors: 3, cols: 3, ground: 'shop', ac: .5 });
+  plantCluster(1, 8);
   B = building(1, 6, -12, { h: 16, wall: '#E3D3C3', style: 'cladding', floors: 5, cols: 4, balcony: '#F7EDE8', lit: .5, ground: 'entrance' });
   vending(1, 1.4, '#3E7CD6'); vending(1, .2, '#F4F4F2');
   B = building(1, -12, -22, { h: 8, wall: '#EFE6D6', style: 'plaster', floors: 2, cols: 2, ground: 'shop', ac: .7, shutter: false, posters: false });
@@ -2246,7 +2437,7 @@ function buildStreet() {
 
   // ================= little things along the sidewalks (each gets its own spot)
   gachapon(-1, -10.6); gachapon(1, -90, 3); gachapon(-1, 64.5, 3);
-  cafeTables(1, 17.2);
+  cafeTables(1, 22.4);
   recycling(-1, 92); recycling(1, 81.5); recycling(-1, -61); recycling(1, -118);
   vending(-1, 58.2, '#3E7CD6'); vending(1, 66, '#D9443F'); vending(-1, -59, '#F4F4F2'); vending(1, -100, '#3E7CD6'); vending(-1, -150, '#D9443F');
   postbox(-1, -16); postbox(1, 52);
@@ -2269,7 +2460,7 @@ function buildStreet() {
   trafficLight(-1, 6.2, 1); trafficLight(1, -1.2, -1); trafficLight(-1, -56.4, 1); trafficLight(1, -63.6, -1); trafficLight(-1, -166.4, 1); trafficLight(1, -173.6, -1);
   for (let z = 104; z > -226; z -= 11) for (const side of [-1, 1]) {
     if ([2.5, -60, -170, -132, -72].some(c => Math.abs(z - 5 - c) < 9)) continue;
-    if (rand() < .35) guardrail(side, z - 1.2, z - 9.6, pick(['#F2F2EE', '#F2F2EE', '#7FA36A']));
+    if (rand() < .35) { const col = pick(['#F2F2EE', '#F2F2EE', '#7FA36A']); if (!(side === 1 && z - 9.6 < 24 && z - 1.2 > 15)) guardrail(side, z - 1.2, z - 9.6, col); }   // no fence in front of the café
   }
   for (const [sd, z] of [[1, 54], [-1, -38], [1, -104], [-1, -178]]) hydrant(sd, z);
   for (const [x, z] of [[4.0, -112], [-4.0, 28.5], [4.0, -196]]) if (claim(Math.sign(x), 'curb', z - 1, z + 1)) streetTree(x, z, 'maple', .8);
@@ -2503,6 +2694,11 @@ function buildColliders() {
   });
 }
 function blocked(x, z) {
+  const D = restroom;
+  if (D.door) {
+    if (D.open < .7 && x > D.x - .1 - RADIUS && x < D.x + .2 + RADIUS && z > D.z0 - RADIUS && z < D.z1 + RADIUS) return true;
+    if (D.open > .3 && x > D.x && x < D.x + .9 + RADIUS && z > D.z0 - .06 - RADIUS && z < D.z0 + .06 + RADIUS) return true;
+  }
   for (const m of movers) if (Math.abs(x - m.g.position.x) < 1.15 && Math.abs(z - m.g.position.z) < 2.2) return true;
   for (const b of colliders)
     if (x > b.min.x - RADIUS && x < b.max.x + RADIUS && z > b.min.z - RADIUS && z < b.max.z + RADIUS) return true;
@@ -2555,7 +2751,7 @@ function tapAt(x, y) {
   mouse.set(x, y);
   ray.setFromCamera(mouse, camera);
   const hit = ray.intersectObjects(tappables, false)[0];
-  if (!hit || hit.distance > 35) { card.style.display = 'none'; return; }
+  if (!hit || hit.distance > 35) { card.style.display = 'none'; if (seated || seatTarget || holding) toggleSeat(); return; }
   shown = hit.object.userData.info; showCard();
   if (locked()) document.exitPointerLock();
 }
@@ -2575,6 +2771,99 @@ document.querySelectorAll('#lang button').forEach(b => b.onclick = () => {
 document.querySelectorAll('#tod button').forEach(b => b.onclick = () => setTime(b.dataset.t));
 addEventListener('keydown', e => { if (e.key === 'Escape') card.style.display = 'none'; });
 
+// ---------------------------------------------------------------- things you can do: sit, stand, pour, drink, open, flush, wash
+// each verb is shown with its reading, so the prompt itself teaches the word
+const VERBS = {
+  suwaru: { r: [['座', 'すわ'], ['る', '']], ro: 'suwaru', en: 'Sit down', zh: '坐下' },
+  tatsu: { r: [['立', 'た'], ['つ', '']], ro: 'tatsu', en: 'Stand up', zh: '站起来' },
+  sosogu: { r: [['水', 'みず'], ['を', ''], ['注', 'そそ'], ['ぐ', '']], ro: 'mizu o sosogu', en: 'Pour some water', zh: '倒水' },
+  nomu: { r: [['飲', 'の'], ['む', '']], ro: 'nomu', en: 'Drink', zh: '喝' },
+  akeru: { r: [['開', 'あ'], ['ける', '']], ro: 'akeru', en: 'Open the door', zh: '开门' },
+  shimeru: { r: [['閉', 'し'], ['める', '']], ro: 'shimeru', en: 'Close the door', zh: '关门' },
+  nagasu: { r: [['流', 'なが'], ['す', '']], ro: 'nagasu', en: 'Flush', zh: '冲水' },
+  arau: { r: [['手', 'て'], ['を', ''], ['洗', 'あら'], ['う', '']], ro: 'te o arau', en: 'Wash your hands', zh: '洗手' },
+};
+let seated = null, seatTarget = null, seatAnim = null, actAnim = null, holding = null, eyeY = 1.62, seatLabel = '';
+const seatBtn = document.getElementById('seat');
+const angleTo = (a, b) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a));      // b, unwrapped to be near a
+function sitDown(s) {
+  seated = { seat: s, from: player.pos.clone() };
+  seatAnim = { t: 0, a: player.pos.clone(), b: new THREE.Vector3(s.x, 0, s.z), ya: eyeY, yb: s.eye, yawA: player.yaw, yawB: angleTo(player.yaw, s.yaw), pA: player.pitch, pB: -.08 };
+}
+function standUp() {
+  seatAnim = { t: 0, a: player.pos.clone(), b: seated.from.clone(), ya: eyeY, yb: 1.62, yawA: player.yaw, yawB: player.yaw, pA: player.pitch, pB: player.pitch };
+  seated = null;
+}
+// a short scripted moment (pouring, flushing...): you stay put while it plays
+function playAnim(dur, step, end) { actAnim = { t: 0, dur, step, end }; }
+function pourWater() {
+  const W = water, g = W.glass, p = W.pitcher, spot = W.spot, home = W.home, gh = W.glassHome;
+  const pourAt = new THREE.Vector3(spot.x, spot.y + .165, spot.z - .3);
+  const lerp = (a, b, k) => a + (b - a) * k, ss = k => k * k * (3 - 2 * k), seg = (k, a, b) => Math.min(1, Math.max(0, (k - a) / (b - a)));
+  playAnim(3.0, k => {
+    const g1 = ss(seg(k, 0, .12));                                          // take a glass from the tray
+    g.position.set(lerp(gh.x, spot.x, g1), gh.y + Math.sin(g1 * Math.PI) * .08, lerp(gh.z, spot.z, g1));
+    const p1 = ss(seg(k, .12, .3)) - ss(seg(k, .72, .88));                   // pitcher over the glass, tilt, back
+    p.position.set(lerp(home.x, pourAt.x, p1), lerp(home.y, pourAt.y, p1), lerp(home.z, pourAt.z, p1)); p.rotation.x = p1 * 1.0;
+    const f = seg(k, .32, .7);                                              // the water runs and the glass fills
+    W.stream.visible = f > 0 && f < 1;
+    if (W.stream.visible) { W.stream.position.set(spot.x, spot.y + .205, spot.z); W.stream.scale.y = .17; }
+    W.glassWater.scale.y = Math.max(.001, f); W.pitcherWater.scale.y = 1 - f * .25;
+    const h = ss(seg(k, .88, 1));                                           // pick it up
+    g.position.y = spot.y + h * .3; g.visible = h < .95;
+  }, () => {
+    W.glass.position.copy(gh); W.glass.visible = true; W.glassWater.scale.y = .001; W.pitcherWater.scale.y = 1;   // a fresh glass on the tray
+    holdGlass();
+  });
+}
+function holdGlass() {
+  if (!camera.parent) scene.add(camera);
+  const hg = new THREE.Group(); hg.position.set(.2, -.2, -.45); camera.add(hg);
+  mesh(new THREE.CylinderGeometry(.035, .03, .1, 12), new THREE.MeshStandardMaterial({ color: '#E4F2F8', transparent: true, opacity: .3, roughness: .05, depthWrite: false }), 0, 0, 0, hg, false);
+  const w = mesh(new THREE.CylinderGeometry(.03, .026, .08, 12), new THREE.MeshStandardMaterial({ color: '#BFE2F2', transparent: true, opacity: .65, roughness: .05 }), 0, -.045, 0, hg, false); w.geometry.translate(0, .04, 0);
+  holding = { g: hg, w };
+}
+function drink() {
+  const H = holding; if (!H) return;
+  playAnim(1.6, k => {
+    const up = Math.min(1, k / .3), down = Math.max(0, (k - .8) / .2);
+    H.g.position.set(.2 - up * .2, -.2 + up * .12 - down * .3, -.45 + up * .18);
+    H.g.rotation.x = up * .9 * (1 - down);
+    H.w.scale.y = Math.max(.001, 1 - Math.max(0, (k - .25) / .5));
+  }, () => { camera.remove(H.g); holding = null; });
+}
+function toggleSeat() {
+  if (seatAnim || actAnim) return;
+  if (seated) standUp();
+  else if (seatTarget) seatTarget.seat ? sitDown(seatTarget.seat) : seatTarget.act();
+  else if (holding) drink();
+}
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'e' && !e.repeat) toggleSeat(); });
+seatBtn.addEventListener('click', toggleSeat);
+function findTarget() {
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  let best = null, bd = 99;
+  const consider = (x, z, reach, t) => {
+    const dx = x - player.pos.x, dz = z - player.pos.z, d = Math.hypot(dx, dz);
+    if (d > reach) return;
+    const dot = d > .01 ? (dx * fx + dz * fz) / d : 1;
+    if (d > .35 && dot < .55) return;                                          // it has to be roughly in front of you
+    const score = d * (1.6 - dot);                                             // closer and more straight ahead wins
+    if (score < bd) { best = t; bd = score; }
+  };
+  for (const s of seats) consider(s.x, s.z, 1.5, { seat: s });
+  for (const a of actions) if (!a.when || a.when()) consider(a.x, a.z, a.reach, a);
+  return best;
+}
+function updateSeatPrompt() {
+  seatTarget = seated || seatAnim || actAnim ? null : findTarget();
+  const key = seated ? 'tatsu' : seatTarget ? (seatTarget.seat ? 'suwaru' : seatTarget.word()) : holding && !actAnim ? 'nomu' : '';
+  const v = VERBS[key], en = lang === 'en';
+  const label = v ? `<kbd>E</kbd>${v.r.map(([k, r]) => r ? `<ruby>${k}<rt>${r}</rt></ruby>` : k).join('')} ${en ? `${v.ro} · ${v.en}` : `· ${v.zh}`}` : '';
+  if (label !== seatLabel) { seatLabel = label; seatBtn.innerHTML = label; }
+  seatBtn.style.display = label && !seatAnim && !actAnim ? 'block' : 'none';
+}
+
 // ================================================================ loop
 const clock = new THREE.Clock();
 let lightTimer = 0;
@@ -2583,25 +2872,39 @@ function frame() {
   const fwd = (keys.has('w') || keys.has('arrowup') || hold.fwd) - (keys.has('s') || keys.has('arrowdown') || hold.back);
   const side = (keys.has('d') || keys.has('arrowright')) - (keys.has('a') || keys.has('arrowleft'));
   const speed = keys.has('shift') ? 7 : 3.4;
-  if (fwd || side) {
+  if (actAnim) {
+    const A = actAnim; A.t = Math.min(1, A.t + dt / A.dur); A.step(A.t);
+    if (A.t >= 1) { actAnim = null; A.end && A.end(); }
+  } else if (seatAnim) {
+    const A = seatAnim; A.t = Math.min(1, A.t + dt / .45); const k = A.t * A.t * (3 - 2 * A.t);
+    player.pos.lerpVectors(A.a, A.b, k); eyeY = A.ya + (A.yb - A.ya) * k;
+    player.yaw = A.yawA + (A.yawB - A.yawA) * k; player.pitch = A.pA + (A.pB - A.pA) * k;
+    if (A.t >= 1) { seatAnim = null; seatLabel = '#'; }
+  } else if (seated) {
+    if (fwd || side) standUp();
+  } else if (fwd || side) {
     const dir = new THREE.Vector3(side, 0, -fwd).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
-    const inCafeZ = cafeDoor.z && player.pos.z > 6.2 && player.pos.z < 23.8;
-    const nx = THREE.MathUtils.clamp(player.pos.x + dir.x * speed * dt, -5.6, inCafeZ ? 13.8 : 5.6);
+    const inCafeZ = cafeDoor.z && player.pos.z > cafeDoor.za && player.pos.z < cafeDoor.zb;
+    const inRestZ = restroom.rz0 && player.pos.z > restroom.rz0 && player.pos.z < restroom.rz1;
+    const nx = THREE.MathUtils.clamp(player.pos.x + dir.x * speed * dt, -5.6, inCafeZ ? (inRestZ ? restroom.x1 - .3 : 13.8) : 5.6);
     const nz = THREE.MathUtils.clamp(player.pos.z + dir.z * speed * dt, WALK_MIN, WALK_MAX);
     if (!blocked(nx, player.pos.z)) player.pos.x = nx;
     if (!blocked(player.pos.x, nz)) player.pos.z = nz;
     player.bob += dt * speed * 2.2;
   }
+  // restroom door swings open into the restroom
+  if (restroom.door) { restroom.open += (restroom.target - restroom.open) * Math.min(1, dt * 4); restroom.door.rotation.y = restroom.open * 1.5; }
   // automatic sliding door
   if (cafeDoor.panels.length) {
-    const near = Math.abs(player.pos.x - cafeDoor.x) < 2.2 && Math.abs(player.pos.z - cafeDoor.z) < 1.6;
+    const near = Math.abs(player.pos.x - cafeDoor.x) < 2.2 && Math.abs(player.pos.z - cafeDoor.z) < 2.0;
     cafeDoor.open += ((near ? 1 : 0) - cafeDoor.open) * Math.min(1, dt * 5);
-    for (const p of cafeDoor.panels) p.g.position.z = p.home + p.dir * cafeDoor.open * .78;
-    const inside = player.pos.x > cafeDoor.x + .2;
-    if (inside !== frame.inside) { frame.inside = inside; document.querySelector('.badge').innerHTML = inside ? 'カフェ<small>Café · tap the menus to read them</small>' : '日本語学校の通り<small>First-person street test</small>'; }
+    for (const p of cafeDoor.panels) p.g.position.z = p.home + p.dir * cafeDoor.open * p.slide;
+    const inside = player.pos.x > cafeDoor.x + .2 ? (restroom.door && player.pos.x > restroom.x + .1 ? 'wc' : 'cafe') : '';
+    if (inside !== frame.inside) { frame.inside = inside; document.querySelector('.badge').innerHTML = inside === 'wc' ? 'お手洗い<small>Restroom · おてあらい</small>' : inside ? 'カフェ<small>Café · tap the menus to read them</small>' : '日本語学校の通り<small>First-person street test</small>'; }
   }
   const onWalk = Math.abs(player.pos.x) > ROAD ? .15 : 0;
-  camera.position.set(player.pos.x, 1.62 + onWalk + Math.sin(player.bob) * .03, player.pos.z);
+  updateSeatPrompt();
+  camera.position.set(player.pos.x, eyeY + onWalk + (seated || seatAnim ? 0 : Math.sin(player.bob) * .03), player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
   sky.position.copy(camera.position);
   // keep the sun's shadow box around you
