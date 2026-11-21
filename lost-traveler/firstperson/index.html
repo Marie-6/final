@@ -1412,7 +1412,7 @@ function cafeInterior(B) {
   box(xb - fx, .1, zb - za, std('#2A1E18'), (fx + xb) / 2, H + .04, zc, G);
   for (let x = fx + 1.2; x < xb; x += 1.8) box(.22, .26, zb - za, darkWood, x, H - .14, zc, G, false);
   // side wall behind the counter: brick
-  box(xb - fx, H, .2, wallMat('brick', '#B0603F', xb - fx, H), (fx + xb) / 2, H / 2, za - .1, G);
+  box(xb + .3 - fx, H, .2, wallMat('brick', '#B0603F', xb + .3 - fx, H), (fx + xb + .3) / 2, H / 2, za - .1, G);
   // other walls: dark green wood panels below, warm plaster above
   const wallSet = (len, cx, cz, rot) => {
     const w = new THREE.Group(); w.position.set(cx, 0, cz); w.rotation.y = rot; G.add(w);
@@ -1421,10 +1421,10 @@ function cafeInterior(B) {
     box(len, .07, .09, darkWood, 0, 1.33, .04, w); box(len, .14, .06, darkWood, 0, .23, .03, w);
     box(len, .12, .08, darkWood, 0, H - .12, .03, w);
   };
-  wallSet(xb - fx, (fx + xb) / 2, zb + .1, Math.PI);
+  wallSet(xb + .1 - fx, (fx + xb + .1) / 2, zb + .1, Math.PI);
   const rdz = za + 6.3, rdw = .45;                                   // restroom doorway on the side wall
   wallSet(rdz - rdw - za, xb + .1, (za + rdz - rdw) / 2, -Math.PI / 2);
-  wallSet(zb - rdz - rdw, xb + .1, (rdz + rdw + zb) / 2, -Math.PI / 2);
+  wallSet(zb + .1 - rdz - rdw, xb + .1, (rdz + rdw + zb + .1) / 2, -Math.PI / 2);
   box(.2, H - 2.27, 2 * rdw, std('#E9D9BC', { roughness: .9 }), xb + .2, (2.27 + H) / 2, rdz, G);
 
   // shop front: glass with frames, an automatic sliding door in the middle
@@ -1584,6 +1584,9 @@ function cafeInterior(B) {
   for (const zz of [rdz - rdw - .04, rdz + rdw + .04]) box(.08, 2.15, .08, darkWood, xb + .06, .16 + 1.075, zz, G);
   box(.08, .09, 2 * rdw + .16, darkWood, xb + .06, 2.3, rdz, G);
   box(.24, .012, 2 * rdw, darkWood, xb + .2, .166, rdz, G, false);
+  const jambM = std('#4A2C1E', { roughness: .7 });
+  for (const zz of [rdz - rdw + .012, rdz + rdw - .012]) box(.32, 2.14, .024, jambM, xb + .16, .16 + 1.07, zz, G);
+  box(.32, .05, 2 * rdw, jambM, xb + .16, 2.27, rdz, G);
   sign({ lines: [{ t: 'お手洗い', size: .5, color: '#FFFFFF' }], w: .6, h: .2, bg: '#5B3A2E', fg: '#FFF', frame: false }, xb + .01, 2.52, rdz, -Math.PI / 2, hint.otearai);
   { const dg = group(xb + .14, .16, rdz - rdw + .02); G.add(dg);
     box(.04, 2.08, 2 * rdw - .04, std('#ffffff', { map: T.panelGreen }), 0, 1.04, rdw - .02, dg);
