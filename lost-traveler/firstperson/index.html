@@ -1417,7 +1417,7 @@ function cafeInterior(B) {
   const wallSet = (len, cx, cz, rot) => {
     const w = new THREE.Group(); w.position.set(cx, 0, cz); w.rotation.y = rot; G.add(w);
     box(len, H, .2, std('#E9D9BC', { roughness: .9 }), 0, H / 2, -.1, w);
-    box(len, 1.15, .05, std('#ffffff', { map: tex(T.panelGreen, len / .9, 1) }), 0, .16 + .575, .02, w);
+    box(len, 1.15, .05, std('#ffffff', { map: tex(T.panelGreen, Math.max(1, Math.round(len / .9)), 1) }), 0, .16 + .575, .02, w);
     box(len, .07, .09, darkWood, 0, 1.33, .04, w); box(len, .14, .06, darkWood, 0, .23, .03, w);
     box(len, .12, .08, darkWood, 0, H - .12, .03, w);
   };
@@ -1479,8 +1479,8 @@ function cafeInterior(B) {
   const caseLen = 1.9, runA = cxa + caseLen;
   const rx = cxe - .4, rz0 = czc + .4, rz1 = za + 4.9;                // return leg along z (customer side faces -x)
   const topM = std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 });
-  const front2 = std('#ffffff', { map: tex(T.panelWood, (cxe - runA) / .9, 1) });
-  const front3 = std('#ffffff', { map: tex(T.panelWood, (rz1 - rz0) / .9, 1) }), endCap = std('#ffffff', { map: tex(T.panelWood, 1, 1) });
+  const front2 = std('#ffffff', { map: tex(T.panelWood, Math.max(1, Math.round((cxe - runA) / .9)), 1) });
+  const front3 = std('#ffffff', { map: tex(T.panelWood, Math.max(1, Math.round((rz1 - rz0) / .9)), 1) }), endCap = std('#ffffff', { map: tex(T.panelWood, 1, 1) });
   box(cxe - runA, 1.0, .8, [darkWood, darkWood, darkWood, darkWood, front2, darkWood], (runA + cxe) / 2, .66, czc, G);
   box(cxe - runA + .1, .07, .95, topM, (runA + cxe) / 2 + .05, 1.195, czc + .05, G);
   box(.8, 1.0, rz1 - rz0, [darkWood, front3, darkWood, darkWood, endCap, darkWood], rx, .66, (rz0 + rz1) / 2, G);
@@ -1506,7 +1506,7 @@ function cafeInterior(B) {
 
   // ---------- back bar against the brick wall: espresso machine, grinders, cups, jars
   const bzc = za + .38;
-  const bbEnd = xb + .08, bbFront = std('#ffffff', { map: tex(T.panelWood, (bbEnd - cxa) / .9, 1) });
+  const bbEnd = xb + .05, bbFront = std('#ffffff', { map: tex(T.panelWood, Math.max(1, Math.round((bbEnd - cxa) / .9)), 1) });
   box(bbEnd - cxa, .92, .62, [darkWood, darkWood, darkWood, darkWood, bbFront, darkWood], (cxa + bbEnd) / 2, .62, bzc, G);
   box(bbEnd - cxa, .05, .68, std('#ffffff', { map: tex(T.grainTop, 3, 1), roughness: .35 }), (cxa + bbEnd) / 2, 1.105, bzc + .02, G);
   espressoMachine(G, fx + 6.0, 1.13, bzc, chrome, blackM, white);
