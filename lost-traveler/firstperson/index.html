@@ -1740,8 +1740,7 @@ function cafeInterior(B) {
   vintageRegister(G, rx - .05, 1.23, regZ, brass, -Math.PI / 2);
   sign({ lines: [{ t: 'レジ', size: .6, color: '#FFFFFF' }], w: .42, h: .18, bg: '#5B3A2E', fg: '#FFF', frame: false }, rx, 1.95, regZ, -Math.PI / 2, hint.reji);
   cyl(.004, .004, .5, blackM, rx, 2.3, regZ, 4, G, false);
-  // on the counter: cake domes, bread basket, tip jar, napkins, a price card
-  cakeDome(G, runA + .5, 1.23, czc + .1, glassM, '#F4A9BE'); cakeDome(G, runA + 1.2, 1.23, czc + .1, glassM, '#5A3420');
+  // on the counter: bread basket, tip jar, napkins, a price card
   breadBasket(G, runA + 2.0, 1.23, czc, T);
   cyl(.07, .07, .16, glassM, rx - .2, 1.31, regZ + .6, 12, G, false); for (let i = 0; i < 4; i++) cyl(.03, .03, .004, brass, rx - .2 + range(-.03, .03), 1.24 + i * .012, regZ + .6, 8, G, false);
   box(.07, .1, .14, metal('#9AA0A8'), rx - .25, 1.28, regZ - .55, G, false);
@@ -1949,8 +1948,6 @@ function cafeInterior(B) {
     cyl(.15, .17, .03, brass, 0, .015, 0, 14, fl2); cyl(.015, .015, 1.5, brass, 0, .76, 0, 6, fl2, false);
     mesh(new THREE.CylinderGeometry(.13, .2, .26, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#F4E2C4', side: THREE.DoubleSide, emissive: 0xffc070, emissiveIntensity: .3 }), 0, 1.55, 0, fl2, false);
   }
-  // a tall plant in the corner by the window
-  { const bp = plantPot(0, 0, 0, 1.7); bp.position.set(fx + 2.05, .16, za + .45); G.add(bp); }
 
   // ---------- warm light inside
   for (const [x, z] of [[5.0, za + 2.5], [2.5, zb - 2.3], [5.2, zb - 2.3], [4.0, za + 5.2]]) { const l = new THREE.PointLight(0xffc890, 4, 10, 1.3); l.position.set(fx + x, H - .5, z); scene.add(l); cafeLights.push(l); }
@@ -2224,12 +2221,6 @@ function pastry(m, kind) {
   }
 }
 
-function cakeDome(parent, x, y, z, glass, top) {
-  cyl(.13, .1, .02, std('#F7F4EE'), x, y + .01, z, 16, parent, false); cyl(.02, .03, .08, std('#F7F4EE'), x, y - .03, z, 8, parent, false);
-  cyl(.09, .09, .08, std('#F7E3C8'), x, y + .06, z, 16, parent, false); cyl(.09, .09, .02, std(top), x, y + .11, z, 16, parent, false);
-  mesh(new THREE.SphereGeometry(.12, 16, 10, 0, 7, 0, Math.PI / 2), glass, x, y + .02, z, parent, false);
-  mesh(new THREE.SphereGeometry(.015, 8, 6), std('#C9A45A'), x, y + .145, z, parent, false);
-}
 function breadBasket(parent, x, y, z, T) {
   const b = box(.4, .14, .28, std('#ffffff', { map: T.wicker }), x, y + .07, z, parent, false);
   for (let i = 0; i < 4; i++) { const bg = mesh(new THREE.CapsuleGeometry(.03, .34, 4, 8), std('#D99A4A', { roughness: .6 }), x - .1 + i * .07, y + .2, z, parent, false); bg.rotation.set(.3, 0, Math.PI / 2 - .4 + i * .05); }
