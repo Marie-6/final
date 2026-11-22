@@ -1929,7 +1929,7 @@ function cafeInterior(B) {
   { const gg = group(xb - .35, 1.04, wz - .05); G.add(gg);
     cyl(.035, .03, .1, glassM, 0, .05, 0, 10, gg, false);
     const gw = cyl(.03, .026, .08, waterM, 0, .005, 0, 10, gg, false); gw.geometry.translate(0, .04, 0); gw.scale.y = .001;
-    const st = cyl(.007, .007, 1, waterM, 0, 0, 0, 8, G, false); st.visible = false;
+    const st = cyl(.007, .007, 1, waterM, 0, 0, 0, 8, G, false); st.visible = false; st.userData.noCollide = true;   // hidden at the origin (middle of the road) until you pour
     dynAll(gg); dynAll(st); water.glass = gg; water.glassWater = gw; water.stream = st; water.glassHome = gg.position.clone(); water.spot = new THREE.Vector3(xb - .32, 1.04, wz + .12); }
   addAction(xb - .3, wz, 1.5, () => 'sosogu', pourWater, () => !holding);
   box(.2, .06, .2, std('#F7F4EE'), xb - .3, 1.07, wz + .38, G, false);
@@ -2350,12 +2350,17 @@ function car(x, z, color, ry = 0, type) {
   const extrude = (shape, depth, mat, y = 0, bevel = .06) => { const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 8 }); geo.translate(0, y, -depth / 2); return mesh(geo, mat, 0, 0, 0, g); };
   // lower body: a rounded box up to the belt line (shorter for the truck bed)
   const bodyFront = hl, bodyRear = T.bed ? .25 : -hl, r = .16;
+  const wx = [hl - .62, -hl + .62];
+  // wheel arches are notches in the bottom edge, not holes: a hole whose edge lies on the
+  // outline makes zero-area triangles → zero normals → NaN pixels that bloom into a black square
   const sh = new THREE.Shape();
-  sh.moveTo(bodyRear + r, .3); sh.lineTo(bodyFront - r, .3); sh.quadraticCurveTo(bodyFront, .3, bodyFront, .3 + r); sh.lineTo(bodyFront, T.hood - .12); sh.quadraticCurveTo(bodyFront - .02, T.hood, bodyFront - .25, T.hood);
+  sh.moveTo(bodyRear + r, .3);
+  for (const cx of wx.slice().sort((a, b) => a - b)) {
+    if (cx - .38 <= bodyRear + r || cx + .38 >= bodyFront - r) continue;   // arch not under this body (truck bed)
+    sh.absarc(cx, .3, .38, Math.PI, 0, true);   // absarc draws its own line in; an extra lineTo duplicates the point
+  }
+  sh.lineTo(bodyFront - r, .3); sh.quadraticCurveTo(bodyFront, .3, bodyFront, .3 + r); sh.lineTo(bodyFront, T.hood - .12); sh.quadraticCurveTo(bodyFront - .02, T.hood, bodyFront - .25, T.hood);
   sh.lineTo(bodyRear + .12, T.belt); sh.quadraticCurveTo(bodyRear, T.belt, bodyRear, T.belt - .12); sh.lineTo(bodyRear, .3 + r); sh.quadraticCurveTo(bodyRear, .3, bodyRear + r, .3);
-  // wheel arches cut out
-  const wx = [hl - .62, (T.bed ? -hl : -hl) + .62];
-  for (const cx of wx) { const hole = new THREE.Path(); hole.absarc(cx, .3, .38, 0, Math.PI, false); hole.lineTo(cx + .38, .3); sh.holes.push(hole); }
   extrude(sh, W - .12, paint);
   // cabin: glass, then roof and pillars in paint
   const [wf0, wf1, wf2, wf3] = T.ws, [rr0, rr1, rr2, rr3] = T.rear;
@@ -2374,7 +2379,7 @@ function car(x, z, color, ry = 0, type) {
   for (const sz of [-1, 1]) box(.12, .1, .14, paint, wf0 - .15, T.belt + .08, sz * (W / 2 + .08), g);
   // bumpers, grille, lights, plates
   box(.14, .2, W - .02, std('#BFC3C9', { roughness: .4, metalness: .4 }), hl + .02, .38, 0, g);
-  box(.04, .2, W * .55, dark, hl + .08, T.hood - .28, 0, g, false);
+  box(.04, .2, W * .48, dark, hl + .08, T.hood - .28, 0, g, false);   // narrower than the gap between headlights so they never overlap
   for (const sz of [-1, 1]) {
     box(.05, .14, .3, glowMat(null, null, .15, 2.2, { color: '#F4F1EA', emissive: 0xfff0c8 }), hl + .08, T.hood - .24, sz * (W / 2 - .22), g, false);
     box(.05, .08, .1, std('#F2A33A'), hl + .08, T.hood - .38, sz * (W / 2 - .12), g, false);
@@ -2382,7 +2387,8 @@ function car(x, z, color, ry = 0, type) {
   const rearX = T.bed ? -hl : bodyRear;
   box(.14, .2, W - .02, std('#BFC3C9', { roughness: .4, metalness: .4 }), rearX - .02, .38, 0, g);
   for (const sz of [-1, 1]) box(.05, .22, .18, glowMat(null, null, .2, 1.4, { color: '#C7302B', emissive: 0xff2a1a }), rearX - .08, T.bed ? .62 : T.belt - .2, sz * (W / 2 - .14), g, false);
-  for (const px of [hl + .1, rearX - .1]) { const pl = mesh(cardGeo, carPlate(), px, .52, 0, g, false); pl.rotation.y = px > 0 ? Math.PI / 2 : -Math.PI / 2; pl.scale.set(.33, .165, 1); }
+  // front plate sits 2.5cm proud of the grille (was in the same plane → flicker)
+  for (const px of [hl + .125, rearX - .1]) { const pl = mesh(cardGeo, carPlate(), px, .52, 0, g, false); pl.rotation.y = px > 0 ? Math.PI / 2 : -Math.PI / 2; pl.scale.set(.33, .165, 1); }
   // kei truck: flat bed with low sides
   if (T.bed) {
     box(hl + .25, .08, W, std('#9AA0A8'), (-hl + .25) / 2, .62, 0, g);
@@ -3157,6 +3163,19 @@ function updateSeatPrompt() {
 // ================================================================ loop
 const clock = new THREE.Clock();
 let lightTimer = 0;
+const _sunRot = new THREE.Matrix4(), _sunInv = new THREE.Matrix4(), _sunP = new THREE.Vector3(), _origin = new THREE.Vector3();
+function placeSun(cz) {
+  const dir = sky.material.uniforms.sunDir.value, cam = sun.shadow.camera;
+  const texel = (cam.right - cam.left) / sun.shadow.mapSize.x;
+  _sunRot.lookAt(dir, _origin, cam.up);          // same orientation the shadow camera will use
+  _sunInv.copy(_sunRot).transpose();             // pure rotation: inverse = transpose
+  _sunP.set(0, 0, cz).applyMatrix4(_sunInv);     // into light space
+  _sunP.x = Math.round(_sunP.x / texel) * texel;
+  _sunP.y = Math.round(_sunP.y / texel) * texel;
+  _sunP.applyMatrix4(_sunRot);                   // back to world space
+  sun.target.position.copy(_sunP);
+  sun.position.copy(_sunP).addScaledVector(dir, 120);
+}
 function frame() {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
   const fwd = (keys.has('w') || keys.has('arrowup') || hold.fwd) - (keys.has('s') || keys.has('arrowdown') || hold.back);
@@ -3197,10 +3216,9 @@ function frame() {
   camera.position.set(player.pos.x, eyeY + onWalk + (seated || seatAnim ? 0 : Math.sin(player.bob) * .03), player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
   sky.position.copy(camera.position);
-  // keep the sun's shadow box around you
-  const snap = v => Math.round(v / 2) * 2;
-  sun.target.position.set(0, 0, snap(player.pos.z - 15));
-  sun.position.copy(sun.target.position).addScaledVector(sky.material.uniforms.sunDir.value, 120);
+  // keep the sun's shadow box around you, moving it in whole shadow-map texels
+  // (any other step shifts the texel grid and makes small shadows shimmer as you walk)
+  placeSun(player.pos.z - 15);
   sky.material.uniforms.time.value = t;
   updateLife(dt);
   if (train) { train.position.x += dt * 18; if (train.position.x > 200) train.position.x = -160; }
