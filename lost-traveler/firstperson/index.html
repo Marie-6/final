@@ -85,7 +85,7 @@ body.shot .hud,body.shot .help,body.shot .move{display:none}
   <div class="seg" id="lang"><button data-l="en" aria-pressed="true">EN</button><button data-l="zh" aria-pressed="false">中文</button></div>
   <div class="seg" id="tod"><button data-t="asa">朝</button><button data-t="hiru">昼</button><button data-t="yoru">夜</button></div>
 </div>
-<div class="help"><span class="keys"><span class="free">Click to look around · </span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · <kbd>Shift</kbd> run · <span class="lockedtip">click a sign to read it · <kbd>Esc</kbd> frees the mouse</span></span><span class="touch">drag to look · tap a sign to read it</span></div>
+<div class="help"><span class="keys"><span class="free">Click to look around · </span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · <kbd>Shift</kbd> run · <span class="lockedtip">click a sign to read it · <kbd>E</kbd> sit / use · <kbd>Esc</kbd> frees the mouse</span></span><span class="touch">drag to look · tap a sign to read it</span></div>
 <div id="dot" aria-hidden="true"></div>
 <button id="seat" type="button"></button>
 <div id="toast" aria-live="polite"></div>
@@ -3273,8 +3273,21 @@ function buildStreet() {
   sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.4, 3.08, 0, hint.eki, rail);
   sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.4, -3.08, Math.PI, hint.eki, rail);
   // station building under the tracks on the right
-  B = building(1, -78, -96, { h: 9, wall: '#ECE7DD', style: 'panel', floors: 2, cols: 4, ground: 'shop', roof: false });
+  B = building(1, -78, -96, { h: 9, wall: '#ECE7DD', style: 'panel', floors: 2, cols: 4, ground: 'shop', roof: false, shutter: false });   // a station is always open
   shopSign(B, 'みなと駅 東口', ['#1D2B4A', '#FFFFFF', '#7DB83A'], hint.eki, 3.95);
+  // the bench outside the station where Day 1 begins (design/06-day-01.md, Scene 1): back to the station, facing the road,
+  // between the corner and the door (the door is z -86..-88)
+  {
+    const x = 5.35, z = -81.2, ry = -Math.PI / 2;
+    claim(1, 'wall', z - 1, z + 1); claim(1, 'curb', z - 1, z + 1);
+    const g = group(x, .153, z, ry), slat = std('#A0714A', { roughness: .6 }), iron = metal('#2E3036');
+    for (let i = 0; i < 4; i++) box(1.5, .035, .09, slat, 0, .44, -.15 + i * .1, g);
+    for (let i = 0; i < 3; i++) box(1.5, .09, .03, slat, 0, .6 + i * .12, -.25 - i * .02, g).rotation.x = -.16;
+    for (const sx of [-.66, .66]) { box(.05, .44, .05, iron, sx, .22, .17, g); box(.05, .86, .05, iron, sx, .43, -.24, g); box(.05, .05, .46, iron, sx, .41, -.03, g); box(.05, .04, .4, iron, sx, .66, .0, g); }
+    addSeat(x, z, ry, 1.15);
+    START.seat = seats[seats.length - 1];
+    START.from = new THREE.Vector3(x - .85, 0, z);      // where you stand up to
+  }
   train = new THREE.Group(); train.position.set(-140, 9.6, -72); scene.add(train);
   const tw = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#E9ECEF'; c.fillRect(0, 0, w, h); c.fillStyle = '#7DB83A'; c.fillRect(0, h * .72, w, h * .12); for (let i = 0; i < 8; i++) { c.fillStyle = '#5E7F9E'; c.fillRect(20 + i * 62, h * .18, 44, h * .4); } });
   const twN = canvasTex(512, 128, (c, w, h) => { c.fillStyle = '#000'; c.fillRect(0, 0, w, h); for (let i = 0; i < 8; i++) { c.fillStyle = '#FFF0D0'; c.fillRect(20 + i * 62, h * .18, 44, h * .4); } });
@@ -3383,7 +3396,7 @@ function buildStreet() {
   for (const [x, z] of [[4.0, -112], [-4.0, 28.5], [4.0, -196]]) if (claim(Math.sign(x), 'curb', z - 1, z + 1)) streetTree(x, z, 'maple', .8);
 
   // cars parked along the road
-  car(2.95, 58, '#E36A6A', -Math.PI / 2); car(-2.95, -28, '#F2F2EE', Math.PI / 2); car(2.95, -84, '#3A6EA5', -Math.PI / 2); car(-2.95, -162, '#E9C46A', Math.PI / 2);
+  car(2.95, 58, '#E36A6A', -Math.PI / 2); car(-2.95, -28, '#F2F2EE', Math.PI / 2); car(2.95, -106, '#3A6EA5', -Math.PI / 2); car(-2.95, -162, '#E9C46A', Math.PI / 2);
   // street trees
   for (const [x, z] of [[4.0, 80], [-4.0, -100], [4.0, -150], [-4.0, -190], [4.0, -210], [-4.0, 47], [4.0, 3]]) if (claim(Math.sign(x), 'curb', z - 1, z + 1)) streetTree(x, z, 'green', .85);
 
@@ -3627,6 +3640,7 @@ function blocked(x, z) {
 
 // ================================================================ controls
 const player = { pos: new THREE.Vector3(0, 0, 40), yaw: 0, pitch: .05, bob: 0 };
+const START = { seat: null, from: null };   // the station bench, filled in by buildStreet()
 const keys = new Set();
 addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
@@ -3671,7 +3685,8 @@ function tapAt(x, y) {
   mouse.set(x, y);
   ray.setFromCamera(mouse, camera);
   const hit = ray.intersectObjects(tappables, false)[0];
-  if (!hit || hit.distance > 35) { card.style.display = 'none'; if (seated || seatTarget || holding) toggleSeat(); return; }
+  // a click only reads signs; sitting, standing up and actions are on E or the on-screen button
+  if (!hit || hit.distance > 35) { card.style.display = 'none'; return; }
   shown = hit.object.userData.info; showCard();
   if (locked()) document.exitPointerLock();
 }
@@ -3931,6 +3946,12 @@ Promise.race([
   setTime(params.get('t') && TIMES[params.get('t')] ? params.get('t') : 'hiru');
   const c = params.get('cam');
   if (c) { const [x, z, yaw, pitch] = c.split(',').map(Number); player.pos.set(x, 0, z); player.yaw = yaw; player.pitch = pitch; }
+  else if (START.seat) {
+    // Day 1 opens with you waking up on the bench outside みなと駅, looking up toward the station sign
+    const s = START.seat;
+    seated = { seat: s, from: START.from.clone() };
+    player.pos.set(s.x, 0, s.z); eyeY = s.eye; player.yaw = 2.7; player.pitch = .12;
+  }
   document.getElementById('loading').remove();
   frame();
 });

@@ -115,8 +115,10 @@ Every interaction gives clear feedback and helps the player learn. One rule ties
 2. **Manga reactions.** NPCs react above their heads: ? when confused, a sweat drop 💧 after a funny mistake, ✨ for a right answer, ♪ when happy. These show how an answer landed without any "wrong" screen.
 3. **Live microphone feedback.** While the player holds the speak button, a volume bar moves with their voice. The words the game hears appear as they talk, and words that match the answer turn green. If nothing matches, the closest option glows softly as a hint.
 4. **Tappable signs.** Any sign in the world can be tapped to show its furigana, its meaning in the help language, and a button to save it to the notebook. Saved signs count as collectibles, so there is always something to read on a walk.
+   - **A click or tap only reads signs.** Clicking empty space, or a sign too far away, just closes the sign card. It never makes the player sit, open a door or drink, so looking at signs is always safe.
 5. **The notebook (手帳, techō).** The player's phone is lost, so every menu lives in a handwritten notebook: today's to-do, words, the stamp book, saved signs, and a hand-drawn map that fills in as new places are visited.
-6. **Satisfying feedback.** Stamps land with a "pon" sound, coins fly to the yen counter, and new words float into the notebook. Small, quick, and never in the way.
+6. **One button to act.** Sitting down, standing up, opening doors, pouring water, flushing and drinking all use **E** on a keyboard or the on-screen action button on touch screens. The button only appears when something is in reach, and its label names the action in Japanese (座る, 立つ, 開ける…), so every action also teaches a verb.
+7. **Satisfying feedback.** Stamps land with a "pon" sound, coins fly to the yen counter, and new words float into the notebook. Small, quick, and never in the way.
 
 ## Game-wide decisions
 
