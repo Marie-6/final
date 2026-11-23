@@ -2084,7 +2084,7 @@ function buildSchool() {
   sign({ lines: [{ t: '土足禁止', size: .55, color: '#FFFFFF' }], w: .8, h: .26, bg: '#D8433F', fg: '#FFF', frame: false }, -23.2, FL + 1.55, 17.42, Math.PI, hint.dosoku, G);
   // the reception window into the teachers' room: frosted sliding glass, a ledge with a bell and a visitor book
   { const rz = 12.5, frost = std('#E3ECEF', { transparent: true, opacity: .82, roughness: .3 });
-    for (const [a, b] of [[-21.85, -21.0], [-21.05, -20.15]]) box(b - a, 1.02, .02, frost, (a + b) / 2, 1.55, rz + (a < -21.5 ? .01 : -.01), G, false);
+    for (const [a, b] of [[-21.85, -21.0], [-21.05, -20.15]]) { const p = box(b - a, 1.02, .02, frost, (a + b) / 2, 1.55, rz + (a < -21.5 ? .01 : -.01), G, false); if (a > -21.5) { SCH.pane = p; dynamic.add(p); p.userData.noCollide = true; } }   // the right pane slides open (367-tanaka-3d.js)
     for (const x of [-21.85, -21.0, -20.15]) box(.04, 1.1, .08, alu, x, 1.55, rz, G, false);
     box(1.76, .04, .4, wood, -21.0, 1.0, rz + .2, G);
     box(.22, .03, .3, std('#2E3550'), -21.4, 1.035, rz + .22, G, false);
@@ -4385,6 +4385,269 @@ function updateLife(dt) {
   }
 }
 
+//@src 315-people-3d.js
+// ---------------------------------------------------------------- people in 3D: soft, storybook-style characters
+// Rounded matte shapes with a painterly grain, big heads (about 5½ heads tall), dot eyes, blush and simple features,
+// like a picture-book illustration. Each person blinks, breathes, turns their head toward you, moves their mouth while
+// they talk, changes face (smile ^‿^, surprised), and can walk, bow, wave and point.
+//
+// makePerson3d({ skin, hair, shirt, vest, tie, pants, shoes, glasses, lanyard }) → person
+//   person.root            the group to place in the world (faces +z)
+//   person.face = 'smile' | 'surprised' | ''     person.speaking = true/false
+//   person.act('bow' | 'wave' | 'point' | 'nod')  person.goTo(x, z, faceAngle)   person.update(dt, lookAt?)
+// people3d[who] = person   → the talk system (365) shows them in the world instead of a 2D portrait.
+const people3d = {};
+const P3_GRAIN = (() => {          // a soft mottled grain so the colours look painted, not plastic
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256);
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 900; i++) {
+    const r = 4 + rnd() * 22, x = rnd() * 256, y = rnd() * 256, v = 200 + rnd() * 55 | 0;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${v},${v},${v},.22)`); gr.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+})();
+function p3mat(color, extra) {
+  return new THREE.MeshStandardMaterial({ color, map: P3_GRAIN, roughness: .95, metalness: 0, emissive: color, emissiveIntensity: .1, ...extra });
+}
+const P3_SPHERE = new THREE.SphereGeometry(1, 28, 20);
+const p3ease = k => k * k * (3 - 2 * k);
+
+function makePerson3d(o) {
+  const M = {
+    skin: p3mat(o.skin || '#F3CBA8'), hair: p3mat(o.hair || '#2E2622', { roughness: .8 }),
+    shirt: p3mat(o.shirt || '#EEF0EE'), vest: p3mat(o.vest || o.shirt || '#5C6F8E'), tie: p3mat(o.tie || '#B5524A'),
+    pants: p3mat(o.pants || '#3A3F4E'), shoes: p3mat(o.shoes || '#6B4A32', { roughness: .6 }),
+    ink: new THREE.MeshStandardMaterial({ color: '#2A211C', roughness: .5 }),
+    shine: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
+    mouth: new THREE.MeshStandardMaterial({ color: '#7A3634', roughness: .7 }),
+    blush: new THREE.MeshBasicMaterial({ color: '#F2958A', transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+    frame: new THREE.MeshStandardMaterial({ color: o.glassesColor || '#3B2A22', roughness: .45, metalness: .2 }),
+    lens: new THREE.MeshStandardMaterial({ color: '#DDEBF2', transparent: true, opacity: .14, roughness: .05, depthWrite: false }),
+  };
+  const add = (geo, mat, parent, x = 0, y = 0, z = 0, sx = 1, sy = sx, sz = sx) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz);
+    m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+  };
+  const grp = (parent, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
+  const capsule = (r, len, mat, parent, y) => add(new THREE.CapsuleGeometry(r, len, 6, 16), mat, parent, 0, y);
+
+  const root = new THREE.Group();
+  // ---- legs (hip pivots) and shoes
+  const legs = [-1, 1].map(s => {
+    const hip = grp(root, s * .085, .82, 0);
+    capsule(.072, .26, M.pants, hip, -.19);
+    const knee = grp(hip, 0, -.4, 0);
+    capsule(.063, .28, M.pants, knee, -.19);
+    add(P3_SPHERE, M.shoes, knee, 0, -.38, .035, .062, .045, .105);
+    return { hip, knee };
+  });
+  // ---- the upper body bends at the hips (for bowing)
+  const upper = grp(root, 0, .82, 0);
+  add(P3_SPHERE, M.pants, upper, 0, .02, 0, .175, .09, .125);                     // hips
+  const torsoProfile = [[0, -.04], [.165, -.03], [.17, .04], [.172, .16], [.188, .32], [.186, .42], [.155, .49], [.07, .525], [0, .53]]
+    .map(([r, y]) => new THREE.Vector2(r, y));
+  const torso = add(new THREE.LatheGeometry(torsoProfile, 36), M.vest, upper, 0, 0, 0, 1, 1, .7);
+  add(new THREE.TorusGeometry(.168, .014, 8, 36), M.vest, upper, 0, .0, 0, 1, 1, .7).rotation.x = Math.PI / 2;   // ribbed hem
+  // shirt V-neck, collar and tie on the chest
+  const chestZ = .186 * .7;
+  if (o.vest) {
+    const v = new THREE.Shape(); v.moveTo(-.048, 0); v.lineTo(.048, 0); v.lineTo(0, -.13); v.closePath();
+    const vm = add(new THREE.ShapeGeometry(v), M.shirt, upper, 0, .5, chestZ - .005); vm.rotation.x = -.42;
+    const t = new THREE.Shape(); t.moveTo(-.013, 0); t.lineTo(.013, 0); t.lineTo(.02, -.085); t.lineTo(0, -.105); t.lineTo(-.02, -.085); t.closePath();
+    const tm = add(new THREE.ExtrudeGeometry(t, { depth: .006, bevelEnabled: false }), M.tie, upper, 0, .485, chestZ - .002); tm.rotation.x = -.4;
+    add(P3_SPHERE, M.tie, upper, 0, .49, chestZ - .02, .02, .016, .014);         // the knot
+    for (const s of [-1, 1]) {                                                    // collar points
+      const c = new THREE.Shape(); c.moveTo(0, 0); c.lineTo(s * .06, .01); c.lineTo(s * .025, -.05); c.closePath();
+      const cm = add(new THREE.ExtrudeGeometry(c, { depth: .005, bevelEnabled: false }), M.shirt, upper, s * .012, .52, chestZ - .035);
+      cm.rotation.x = -.5; cm.rotation.y = s * .25;
+    }
+  }
+  add(new THREE.CylinderGeometry(.06, .07, .05, 20), M.shirt, upper, 0, .525, 0, 1, 1, .9);   // shirt collar band
+  // lanyard and ID card
+  if (o.lanyard) {
+    const strap = p3mat(o.lanyard);
+    for (const s of [-1, 1]) { const b = add(new THREE.CylinderGeometry(.006, .006, .3, 6), strap, upper, s * .055, .39, chestZ + .012); b.rotation.z = s * .28; b.rotation.x = -.38; }
+    const card = add(new THREE.BoxGeometry(.075, .1, .006), p3mat('#F7F5EE'), upper, 0, .23, chestZ + .03); card.rotation.x = -.12;
+    add(new THREE.BoxGeometry(.03, .036, .002), p3mat('#9FB4C9'), card, -.014, .015, .004);
+    add(new THREE.BoxGeometry(.075, .016, .002), strap, card, 0, -.038, .004);
+  }
+  // ---- arms (shoulder and elbow pivots), shirt sleeves, cuffs and soft mitten hands
+  const arms = [-1, 1].map(s => {
+    const sh = grp(upper, s * .19, .43, 0);
+    add(P3_SPHERE, M.shirt, sh, 0, 0, 0, .052);
+    capsule(.047, .17, M.shirt, sh, -.12);
+    const el = grp(sh, 0, -.25, 0);
+    capsule(.044, .15, M.shirt, el, -.1);
+    add(new THREE.CylinderGeometry(.047, .047, .03, 16), M.shirt, el, 0, -.19, 0);
+    const hand = grp(el, 0, -.24, 0);
+    add(P3_SPHERE, M.skin, hand, 0, 0, 0, .042, .052, .034);
+    add(P3_SPHERE, M.skin, hand, s * -.032, .012, .012, .016, .026, .015).rotation.z = s * .5;   // thumb
+    return { sh, el, hand, s };
+  });
+  // ---- neck and head (the head turns at the neck)
+  add(new THREE.CylinderGeometry(.042, .046, .1, 16), M.skin, upper, 0, .56, 0);
+  const neck = grp(upper, 0, .58, 0);
+  const H = grp(neck, 0, .1, .005);                                 // head centre
+  const R = [.15, .153, .144];
+  add(P3_SPHERE, M.skin, H, 0, 0, 0, ...R);
+  for (const s of [-1, 1]) add(P3_SPHERE, M.skin, H, s * .146, -.005, -.005, .018, .032, .026);   // ears
+  const _n = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1);
+  // a point on the face: a = left/right angle, b = up/down angle, out = how far in front of the skin
+  function onFace(m, a, b, out = .002) {
+    const p = new THREE.Vector3(R[0] * Math.sin(a) * Math.cos(b), R[1] * Math.sin(b), R[2] * Math.cos(a) * Math.cos(b));
+    _n.set(p.x / R[0] ** 2, p.y / R[1] ** 2, p.z / R[2] ** 2).normalize();
+    m.position.copy(p).addScaledVector(_n, out);
+    m.quaternion.setFromUnitVectors(_z, _n);
+    H.add(m); return m;
+  }
+  const F = {};
+  const EYE_A = .3, EYE_B = -.02;
+  F.eyes = [-1, 1].map(s => {
+    const e = onFace(new THREE.Group(), s * EYE_A, EYE_B, 0);
+    add(P3_SPHERE, M.ink, e, 0, 0, 0, .016, .023, .008);
+    add(P3_SPHERE, M.shine, e, s * -.004 + .005, .008, .007, .0045);
+    return e;
+  });
+  F.smiles = [-1, 1].map(s => {                                     // ^ ^ happy closed eyes
+    const m = onFace(new THREE.Mesh(new THREE.TorusGeometry(.016, .0042, 6, 18, Math.PI), M.ink), s * EYE_A, EYE_B - .01, .001);
+    m.visible = false; return m;
+  });
+  F.brows = [-1, 1].map(s => {
+    const g = onFace(new THREE.Group(), s * .3, .21, .001);
+    const b = add(new THREE.CapsuleGeometry(.0055, .028, 4, 8), M.hair, g); b.rotation.z = Math.PI / 2 + s * .12;
+    return g;
+  });
+  F.brows.forEach(b => (b.userData.y = b.position.y));
+  for (const s of [-1, 1]) onFace(new THREE.Mesh(new THREE.CircleGeometry(.026, 24), M.blush), s * .55, -.24, .001);
+  onFace(new THREE.Mesh(P3_SPHERE, M.skin), 0, -.17, -.004).scale.set(.014, .012, .012);          // little nose
+  F.closed = onFace(new THREE.Mesh(new THREE.TorusGeometry(.02, .0042, 6, 18, Math.PI), M.ink), 0, -.37, .001);
+  F.closed.rotateZ(Math.PI);                                         // ‿ a gentle smile
+  F.open = onFace(new THREE.Group(), 0, -.39, -.002);
+  add(P3_SPHERE, M.mouth, F.open, 0, 0, 0, .022, .018, .008);
+  add(P3_SPHERE, p3mat('#D9746E'), F.open, 0, -.009, .004, .012, .006, .004);                  // tongue
+  F.open.scale.y = .01; F.open.visible = false;
+  // ---- glasses
+  if (o.glasses) {
+    const gl = grp(H, 0, -.002, 0);
+    for (const s of [-1, 1]) {
+      const c = new THREE.Vector3(R[0] * Math.sin(s * EYE_A), R[1] * Math.sin(EYE_B), R[2] * Math.cos(EYE_A) + .026);
+      const ring = add(new THREE.TorusGeometry(.036, .0042, 8, 32), M.frame, gl, c.x, c.y, c.z); ring.rotation.y = s * .16;
+      const lens = add(new THREE.CircleGeometry(.035, 28), M.lens, gl, c.x, c.y, c.z - .001); lens.rotation.y = s * .16; lens.castShadow = false;
+      const arm = add(new THREE.BoxGeometry(.004, .005, .16), M.frame, gl, s * .148, c.y + .01, c.z - .085); arm.rotation.y = s * -.08;
+      const hinge = add(new THREE.BoxGeometry(.03, .006, .006), M.frame, gl, c.x + s * .045, c.y + .01, c.z - .006); hinge.rotation.y = s * -.4;
+    }
+    const br = add(new THREE.TorusGeometry(.014, .003, 6, 12, Math.PI), M.frame, gl, 0, .006, R[2] * Math.cos(EYE_A) + .03);
+    br.rotation.z = 0;
+  }
+  // ---- hair: a cap tilted back (forehead shows, nape covered), a side-swept fringe, a little volume on top
+  const cap = add(new THREE.SphereGeometry(.159, 36, 24, 0, Math.PI * 2, 0, 1.78), M.hair, H, 0, .006, -.006, 1.03, 1.03, 1.03);
+  cap.rotation.x = -.6;
+  const fringe = add(P3_SPHERE, M.hair, H, .025, .098, .075, .125, .05, .07); fringe.rotation.set(-.55, 0, -.22);
+  const fringe2 = add(P3_SPHERE, M.hair, H, -.08, .085, .06, .07, .045, .06); fringe2.rotation.set(-.4, .3, .35);
+  add(P3_SPHERE, M.hair, H, 0, .02, -.06, .158, .14, .12);          // back and nape
+  add(P3_SPHERE, M.hair, H, -.03, .13, -.01, .12, .05, .12).rotation.z = .12;   // volume on top
+  for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .14, .03, -.01, .03, .07, .06);   // sideburns over the ears' tops
+
+  root.traverse(m => { if (m.isMesh) { m.userData.noCollide = true; dynamic.add(m); } });
+
+  // ---------------- animation
+  const P = {
+    root, face: '', speaking: false, mouth: 0,
+    blinkIn: 2, blink: 0, t: Math.random() * 10, walk: 0, walkPhase: 0,
+    target: null, faceAngle: null, gesture: null, look: new THREE.Vector3(), lookW: 0, headYaw: 0, headPitch: 0,
+  };
+  P.goTo = (x, z, faceAngle) => { P.target = new THREE.Vector2(x, z); P.faceAngle = faceAngle; };
+  P.act = name => { P.gesture = { name, t: 0, dur: { bow: 1.6, wave: 1.8, point: 1.8, nod: .7 }[name] || 1 }; };
+  const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
+  const turnTo = (cur, want, k) => cur + Math.atan2(Math.sin(want - cur), Math.cos(want - cur)) * k;
+  P.update = (dt, lookAt) => {
+    P.t += dt;
+    // walking toward a target
+    let moving = 0;
+    if (P.target) {
+      const dx = P.target.x - root.position.x, dz = P.target.y - root.position.z, d = Math.hypot(dx, dz);
+      if (d > .02) {
+        const step = Math.min(d, .95 * dt);
+        root.position.x += dx / d * step; root.position.z += dz / d * step;
+        root.rotation.y = turnTo(root.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
+        moving = 1;
+      } else if (P.faceAngle != null) root.rotation.y = turnTo(root.rotation.y, P.faceAngle, Math.min(1, dt * 6));
+    }
+    P.walk += (moving - P.walk) * Math.min(1, dt * 8);
+    P.walkPhase += dt * 7.5 * P.walk;
+    const sw = Math.sin(P.walkPhase) * P.walk;
+    legs.forEach((L, i) => {
+      const ph = i ? sw : -sw;
+      L.hip.rotation.x = ph * .42;
+      L.knee.rotation.x = Math.max(0, -Math.cos(P.walkPhase + i * Math.PI)) * .55 * P.walk;
+    });
+    upper.position.y = .82 + Math.abs(Math.cos(P.walkPhase)) * .018 * P.walk;
+    // breathing and a slow idle sway
+    const br = Math.sin(P.t * 1.6);
+    torso.scale.set(1 + br * .008, 1 + br * .006, .7 * (1 + br * .012));
+    upper.rotation.z = Math.sin(P.t * .55) * .012 * (1 - P.walk);
+    // arms: relaxed, swinging while walking, or a gesture
+    arms.forEach(A => {
+      A.sh.rotation.set(-sw * A.s * .35, 0, A.s * .09);
+      A.el.rotation.set(-.18 - P.walk * .12, 0, 0);
+      A.hand.rotation.set(0, 0, 0);
+    });
+    let bow = 0, headNod = 0;
+    const G = P.gesture;
+    if (G) {
+      G.t += dt; const k = G.t / G.dur;
+      const env = p3ease(Math.min(1, Math.min(k, 1 - k) * 4));   // ease in, hold, ease out
+      const right = arms[0];                                     // his right hand is on the -x side
+      if (G.name === 'bow') {
+        bow = env * .48;
+        arms.forEach(A => { A.sh.rotation.x = -env * .12; A.sh.rotation.z = A.s * (.09 - env * .07); });
+      } else if (G.name === 'wave') {
+        right.sh.rotation.z = -.09 - env * 2.55; right.sh.rotation.x = -env * .25;
+        right.el.rotation.set(-env * .2, 0, -env * (.35 + Math.sin(G.t * 11) * .3));
+        headNod = env * .06;
+      } else if (G.name === 'point') {               // an open palm toward "over there" (あちら)
+        right.sh.rotation.x = -env * 1.15; right.sh.rotation.z = -.09 - env * .22;
+        right.el.rotation.x = -env * .35; right.hand.rotation.y = -env * 1.2;
+      } else if (G.name === 'nod') headNod = Math.sin(k * Math.PI) * .22;
+      if (k >= 1) P.gesture = null;
+    }
+    upper.rotation.x = bow;
+    // head: turn toward what we look at (the player), within a comfortable range
+    let yaw = 0, pitch = 0;
+    if (lookAt && !moving) {
+      root.updateMatrixWorld(true);
+      _v.copy(lookAt); neck.worldToLocal(_v);
+      yaw = THREE.MathUtils.clamp(Math.atan2(_v.x, _v.z), -.7, .7);
+      pitch = THREE.MathUtils.clamp(-Math.atan2(_v.y - H.position.y, Math.hypot(_v.x, _v.z)), -.35, .35);
+    }
+    const kk = Math.min(1, dt * 5);
+    P.headYaw += (yaw - P.headYaw) * kk; P.headPitch += (pitch - P.headPitch) * kk;
+    const tilt = P.face === 'smile' ? .1 : 0;
+    neck.rotation.set(P.headPitch + headNod - bow * .3, P.headYaw, tilt * (1 + Math.sin(P.t * .9) * .2));
+    // face: blink, smile, surprise
+    if ((P.blinkIn -= dt) <= 0) { P.blink = .14; P.blinkIn = 2 + Math.random() * 3.5; }
+    P.blink = Math.max(0, P.blink - dt);
+    const happy = P.face === 'smile', wow = P.face === 'surprised';
+    const lid = P.blink > 0 ? .12 : 1, big = wow ? 1.3 : 1;
+    F.eyes.forEach(e => { e.visible = !happy; e.scale.set(big, big * lid, 1); });
+    F.smiles.forEach(e => (e.visible = happy));
+    F.brows.forEach(b => (b.position.y += ((b.userData.y + (wow ? .018 : happy ? .006 : 0)) - b.position.y) * kk));
+    // mouth: chatters while speaking; a small "o" when surprised; otherwise a gentle smile
+    const chatter = P.speaking ? .25 + .75 * Math.abs(Math.sin(P.t * 17) * Math.sin(P.t * 6.1 + 1.3)) : 0;
+    const want = Math.max(chatter, wow ? .55 : 0);
+    P.mouth += (want - P.mouth) * Math.min(1, dt * 22);
+    F.open.visible = P.mouth > .08; F.closed.visible = !F.open.visible;
+    F.open.scale.set(wow && !P.speaking ? .7 : 1, Math.max(.05, P.mouth), 1);
+  };
+  return P;
+}
+// per-frame staging (who walks where and when), one function per character; the main loop calls updatePeople3d
+const people3dStage = [];
+function updatePeople3d(dt) { for (const f of people3dStage) f(dt); }
 //@src 320-collisions.js
 // ================================================================ collisions
 const colliders = [], RADIUS = .32;
@@ -4475,6 +4738,7 @@ function tapAt(x, y) {
   // a click only reads signs; sitting, standing up and actions are on E or the on-screen button
   if (!hit || hit.distance > 35) { card.style.display = 'none'; return; }
   shown = hit.object.userData.info; showCard();
+  speak(shown.ruby.map(([k]) => k).join(''), 'narr');   // 364-voice.js: the narrator reads the sign aloud
   if (locked()) document.exitPointerLock();
 }
 function showCard() {
@@ -4642,6 +4906,324 @@ function updateSeatPrompt() {
   seatBtn.style.display = label && !seatAnim && !actAnim ? 'block' : 'none';
 }
 
+//@src 364-voice.js
+// ---------------------------------------------------------------- voice: characters speak their Japanese lines (same system as prototype/)
+// Inworld TTS when a key is available, otherwise the computer's built-in Japanese voice.
+// The key is never in this repo: it comes from prototype/key.js (private, in .gitignore; copy key.example.js),
+// or from opening the game once with ?inworld=YOUR_KEY, which saves it in this browser (shared with the prototype).
+const VOICES = { tanaka: 'Haruto', barista: 'Asuka', narr: 'Jason' };   // Inworld voice IDs per speaker
+const VOICE_RATE = { narr: .8 };   // speaking speed per speaker (1 = normal): the narrator reads slowly
+const INWORLD_MODEL = 'inworld-tts-2';
+let voiceKey = '', voiceOn = true, jaVoice = null, voiceAudio = null, voiceReq = 0;
+const voiceCache = new Map();   // voice + text -> audio URL, so each line is only paid for once
+try {
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('inworld')) {
+    localStorage.setItem('inworldKey', qs.get('inworld'));
+    qs.delete('inworld');
+    history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : '') + location.hash);
+  }
+  voiceKey = localStorage.getItem('inworldKey') || '';
+} catch (e) {}
+{ // key.js wins, so editing it takes effect on reload
+  const s = document.createElement('script');
+  s.src = '../prototype/key.js';
+  s.onload = () => { if (window.INWORLD_KEY) voiceKey = window.INWORLD_KEY; };
+  s.onerror = () => {};
+  document.head.appendChild(s);
+}
+function pickJaVoice() { jaVoice = speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)) || null; }
+if ('speechSynthesis' in window) { pickJaVoice(); speechSynthesis.onvoiceschanged = pickJaVoice; }
+
+// Safari only lets audio play after a network wait if that same <audio> element was started inside a click/key press,
+// so one element is unlocked on the first gesture and reused for every line (built-in speech gets the same unlock)
+const voiceEl = new Audio();
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+function unlockVoice() {
+  removeEventListener('pointerdown', unlockVoice, true); removeEventListener('keydown', unlockVoice, true);
+  voiceEl.src = SILENT_WAV; voiceEl.play().catch(() => {});
+  if ('speechSynthesis' in window) try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+}
+addEventListener('pointerdown', unlockVoice, true); addEventListener('keydown', unlockVoice, true);
+
+function stopVoice() {
+  voiceReq++;
+  if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+function sayBuiltIn(text, rate = 1) {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP'; if (jaVoice) u.voice = jaVoice; u.rate = 0.9 * rate;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+async function sayInworld(text, voiceId, req, rate) {
+  const key = voiceId + '|' + rate + '|' + text;
+  let url = voiceCache.get(key);
+  if (!url) {
+    const r = await fetch('https://api.inworld.ai/tts/v1/voice', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + voiceKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voiceId, modelId: INWORLD_MODEL, audioConfig: { audioEncoding: 'MP3', speakingRate: rate } }),
+    });
+    if (!r.ok) throw new Error('Inworld ' + r.status);
+    url = 'data:audio/mpeg;base64,' + (await r.json()).audioContent;
+    voiceCache.set(key, url);
+  }
+  if (req !== voiceReq) return;   // something else started or stopped speech meanwhile
+  voiceAudio = voiceEl; voiceEl.src = url;
+  await voiceEl.play();
+}
+// text may contain {漢字|かんじ} ruby; who is a VOICES key (unknown → built-in voice)
+function speak(text, who, rate = VOICE_RATE[who] || 1) {
+  if (!voiceOn) return;
+  stopVoice();
+  const clean = String(text).replace(/\{([^|}]+)\|[^}]+\}/g, '$1').replace(/[〜~♪]/g, '');
+  if (!clean.trim()) return;
+  const voiceId = VOICES[who];
+  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate);
+  const req = voiceReq;
+  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate); });
+}
+//@src 365-talk-interaction.js
+// ---------------------------------------------------------------- talk: visual-novel conversations with 2D portraits
+// No people stand in the world. Using a talk spot (E) opens a conversation over the game: the street dims and blurs,
+// the speaker's portrait slides in on the right, their name sits bottom left (？？？ until they introduce themselves),
+// and each line types out in Japanese with furigana, with romaji · English (or 中文) under it. Some lines offer replies.
+//
+// A script: { who: 'tanaka', name: '田中先生', start?, again?, lines: [ line, … ] }
+// A line:   { id?, by: 'npc' | 'me' | 'narr', jp: 'はじめまして。{田中|たなか}です。', ro, en, zh,
+//             face?: 'smile',          → art/portraits/tanaka-smile.png (then tanaka.png, then a placeholder silhouette)
+//             introduce?: true,        → after this line the name shows instead of ？？？
+//             choices?: [{ jp, ro, en, zh, next }],   next?: 'id',   end?: true }
+const talkMet = new Set();
+let talking = null;
+const talkEl = (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+#talk{position:fixed;inset:0;z-index:20;display:none;color:#fff;font-family:var(--font);user-select:none;-webkit-user-select:none}
+#talk.on{display:block}
+#talk .bd{position:absolute;inset:0;background:rgba(12,18,34,.32);backdrop-filter:blur(7px) saturate(.75) brightness(.72);-webkit-backdrop-filter:blur(7px) saturate(.75) brightness(.72);opacity:0;transition:opacity .35s}
+#talk.show .bd{opacity:1}
+#talk.live .bd{backdrop-filter:none;-webkit-backdrop-filter:none;background:transparent}
+#talk .pt{position:absolute;right:5vw;bottom:0;height:min(94vh,1150px);max-width:62vw;object-fit:contain;object-position:bottom right;opacity:0;transform:translateX(48px);transition:opacity .45s,transform .45s,filter .3s;pointer-events:none;filter:drop-shadow(0 10px 30px rgba(0,0,0,.35))}
+#talk .pt.in{opacity:1;transform:none}
+#talk .pt.dim{filter:brightness(.55) drop-shadow(0 10px 30px rgba(0,0,0,.35))}
+#talk .band{position:absolute;left:0;right:0;bottom:0;padding:56px 6vw calc(30px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,rgba(8,12,24,.88),rgba(8,12,24,.6) 55%,transparent);display:grid;grid-template-columns:minmax(96px,15vw) 1fr;gap:3vw;align-items:start}
+#talk .nm{font-weight:900;font-size:clamp(18px,2.3vw,30px);letter-spacing:.14em;padding-top:.5em;text-shadow:0 2px 8px rgba(0,0,0,.55);white-space:nowrap}
+#talk .jp{font-size:clamp(20px,2.5vw,34px);font-weight:700;line-height:2;min-height:2em;text-shadow:0 2px 8px rgba(0,0,0,.55);max-width:min(900px,60vw)}
+#talk .jp rt{font-size:.42em;font-weight:500;letter-spacing:.05em}
+#talk .sub{font-size:clamp(13px,1.35vw,17px);color:var(--sign-dim);min-height:1.4em;opacity:0;transition:opacity .25s;max-width:min(900px,60vw)}
+#talk .sub.in{opacity:1}
+#talk .nx{position:absolute;right:6vw;bottom:calc(20px + env(safe-area-inset-bottom,0px));font-size:14px;opacity:0;animation:talkNx 1s ease-in-out infinite}
+#talk .nx.in{opacity:.8}
+@keyframes talkNx{50%{transform:translateY(4px)}}
+#talk .ch{position:absolute;left:6vw;bottom:calc(210px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;width:min(520px,calc(100% - 32px))}
+#talk .ch button{display:flex;gap:12px;align-items:flex-start;text-align:left;background:rgba(243,247,244,.95);color:var(--navy);border-radius:12px;padding:11px 16px;font-weight:700;font-size:clamp(16px,1.6vw,20px);box-shadow:0 8px 24px rgba(0,0,0,.3);transition:transform .15s}
+#talk .ch button:hover{transform:translateX(6px)}
+#talk .ch button kbd{margin-top:3px;background:var(--navy);color:var(--sign)}
+#talk .ch button small{display:block;font-weight:500;color:var(--muted);font-size:13px;margin-top:2px}
+#talk .ch rt{font-size:.5em}
+#talk .x{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:16px;background:rgba(8,12,24,.55);color:#fff;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px}
+@media (max-width:640px){
+  #talk .pt{right:-6vw;max-width:96vw;height:78vh}
+  #talk .band{grid-template-columns:1fr;gap:2px;padding:40px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+  #talk .nm{padding-top:0}
+  #talk .jp,#talk .sub{max-width:none}
+  #talk .ch{left:16px;bottom:calc(190px + env(safe-area-inset-bottom,0px))}
+}`;
+  document.head.appendChild(st);
+  const el = document.createElement('div'); el.id = 'talk'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Conversation');
+  el.innerHTML = '<div class="bd"></div><img class="pt" alt=""><div class="band"><div class="nm"></div><div><div class="jp" aria-live="polite"></div><div class="sub"></div></div></div><div class="ch"></div><div class="nx">▼</div><button class="x" type="button">✕ Esc</button>';
+  document.body.appendChild(el);
+  return el;
+})();
+const talkQ = s => talkEl.querySelector(s);
+// a soft silhouette, shown until the real portrait art exists
+const TALK_PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1000"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C5D0E6" stop-opacity=".55"/><stop offset="1" stop-color="#C5D0E6" stop-opacity=".15"/></linearGradient></defs><g fill="url(#g)" stroke="#fff" stroke-opacity=".35" stroke-width="3"><path d="M40 1000 C60 760 170 680 300 680 C430 680 540 760 560 1000Z M262 600 h76 v90 h-76z"/><ellipse cx="300" cy="470" rx="140" ry="175"/></g><text x="300" y="500" font-size="120" text-anchor="middle" fill="#fff" fill-opacity=".5" font-family="sans-serif" font-weight="700">?</text></svg>`);
+const talkMissing = new Set();
+function talkPortrait(who, face) {
+  const tries = [face && `art/portraits/${who}-${face}.png`, `art/portraits/${who}.png`].filter(p => p && !talkMissing.has(p));
+  const img = talkQ('.pt'), want = tries[0] || TALK_PLACEHOLDER;
+  if (img.dataset.src === want) return;
+  img.dataset.src = want;
+  img.onerror = () => { talkMissing.add(want); img.dataset.src = ''; talkPortrait(who, face); };
+  img.src = want;
+}
+// {漢字|かんじ} → <ruby>; returns tokens so the typewriter can reveal them one character at a time
+function talkTokens(s) {
+  const out = [];
+  s.replace(/\{([^|}]+)\|([^}]+)\}|([^{]+)/g, (m, b, r, plain) => { if (b) out.push({ b, r }); else for (const ch of plain) out.push({ b: ch }); return m; });
+  return out;
+}
+const talkRuby = toks => toks.map(t => t.r ? `<ruby>${t.b}<rt>${t.r}</rt></ruby>` : t.b.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))).join('');
+const talkSub = o => lang === 'en' ? [o.ro, o.en].filter(Boolean).join(' · ') : (o.zh || o.en || '');
+
+function startTalk(script) {
+  if (talking) return;
+  if (locked()) document.exitPointerLock();
+  keys.clear(); hold.fwd = hold.back = 0;
+  const met = talkMet.has(script.who);
+  talking = { script, i: 0, known: met, typing: null };
+  talkEl.classList.toggle('live', !!people3d[script.who]);   // 3D people stay sharp in the world (315-people-3d.js)
+  talkEl.classList.add('on'); requestAnimationFrame(() => talkEl.classList.add('show'));
+  talkGo(met && script.again ? script.again : script.start || 0);
+}
+function endTalk() {
+  if (!talking) return;
+  clearInterval(talking.typing);
+  stopVoice();
+  talkEl.classList.remove('show'); talkQ('.pt').classList.remove('in');
+  talking = null;
+  setTimeout(() => { if (!talking) talkEl.classList.remove('on'); }, 350);
+}
+function talkFind(id) { const L = talking.script.lines; return typeof id === 'number' ? id : L.findIndex(l => l.id === id); }
+function talkGo(id) {
+  const T = talking, i = talkFind(id);
+  if (!T || i < 0 || i >= T.script.lines.length) return endTalk();
+  T.i = i; talkShow(T.script.lines[i]);
+}
+function talkShow(line, after) {
+  const T = talking, S = T.script, by = line.by || 'npc';
+  const name = by === 'me' ? (lang === 'en' ? 'あなた' : 'あなた') : by === 'narr' ? '' : T.known ? S.name : '？？？';
+  talkQ('.nm').textContent = name;
+  const pt = talkQ('.pt');
+  if (people3d[S.who] || (by === 'narr' && !T.shown)) pt.classList.remove('in');   // 3D people need no portrait
+  else { talkPortrait(S.who, line.face); pt.classList.add('in'); T.shown = true; }
+  pt.classList.toggle('dim', by === 'me');
+  talkQ('.ch').innerHTML = ''; talkQ('.nx').classList.remove('in');
+  const sub = talkQ('.sub'); sub.classList.remove('in'); sub.textContent = talkSub(line);
+  const toks = talkTokens(line.jp), jp = talkQ('.jp');
+  let n = 0;
+  clearInterval(T.typing);
+  T.line = line; T.after = after; T.done = false;
+  const tick = () => { n++; jp.innerHTML = talkRuby(toks.slice(0, n)); if (n >= toks.length) talkFinish(); };
+  jp.innerHTML = '';
+  T.finish = () => { n = toks.length; jp.innerHTML = talkRuby(toks); };
+  T.typing = setInterval(tick, 38);
+  if (by === 'npc') speak(line.jp, S.who);   // 364-voice.js (your own replies stay silent)
+}
+function talkFinish() {
+  const T = talking; if (!T || T.done) return;
+  clearInterval(T.typing); T.finish(); T.done = true;
+  talkQ('.sub').classList.add('in');
+  const line = T.line;
+  if (line.introduce) T.known = true, talkMet.add(T.script.who);
+  if (line.choices && !T.after) {
+    talkQ('.ch').innerHTML = line.choices.map((c, k) => `<button type="button" data-k="${k}"><kbd>${k + 1}</kbd><span>${talkRuby(talkTokens(c.jp))}<small>${talkSub(c)}</small></span></button>`).join('');
+  } else talkQ('.nx').classList.add('in');
+}
+function talkChoose(k) {
+  const T = talking, c = T && T.done && T.line.choices && !T.after && T.line.choices[k];
+  if (!c) return;
+  talkShow({ by: 'me', jp: c.jp, ro: c.ro, en: c.en, zh: c.zh }, c.next);   // you say your reply, then the story goes on
+}
+function talkNext() {
+  const T = talking; if (!T) return;
+  if (!T.done) return talkFinish();
+  if (T.line.choices && !T.after) return;                                   // waiting for a reply
+  if (T.after !== undefined) return talkGo(T.after);
+  if (T.line.end) return endTalk();
+  talkGo(T.line.next !== undefined ? T.line.next : T.i + 1);
+}
+talkEl.addEventListener('click', e => {
+  if (e.target.closest('.x')) return endTalk();
+  const b = e.target.closest('.ch button');
+  if (b) return talkChoose(+b.dataset.k);
+  talkNext();
+});
+// while talking, the keyboard belongs to the conversation (no walking, no other E actions)
+addEventListener('keydown', e => {
+  if (!talking) return;
+  e.stopImmediatePropagation(); e.preventDefault();
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') endTalk();
+  else if (k === ' ' || k === 'enter' || k === 'e') talkNext();
+  else if (k >= '1' && k <= '9') talkChoose(+k - 1);
+}, true);
+// a place in the world where pressing E starts a conversation
+function addTalkSpot(x, z, reach, verb, script, y = 0) {
+  addAction(x, z, reach, () => verb, () => startTalk(script), () => !talking, y);
+}
+//@src 366-talk-tanaka.js
+// ---------------------------------------------------------------- talk: 田中先生 at the school's 受付 window
+// The teachers' room is closed, but there's a bell on the reception ledge. Ring it and Tanaka-sensei comes to the window.
+// He appears in 3D at the window (367-tanaka-3d.js). face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'wave'.
+VERBS.yobu = { r: [['呼', 'よ'], ['び', ''], ['鈴', 'りん'], ['を', ''], ['鳴', 'な'], ['らす', '']], ro: 'yobirin o narasu', en: 'Ring the bell', zh: '按铃' };
+const TANAKA_DAY1 = {
+  who: 'tanaka', name: '田中先生', again: 'again',
+  lines: [
+    { by: 'narr', jp: 'チーン♪', ro: 'chīn', en: '(You ring the bell.)', zh: '（你按了铃。）' },
+    { jp: 'はーい！', ro: 'Hāi!', en: 'Coming!', zh: '来了！', face: 'surprised' },
+    { jp: 'こんにちは。{日本語|にほんご}{学校|がっこう}へ ようこそ。', ro: 'Konnichiwa. Nihongo gakkō e yōkoso.', en: 'Hello. Welcome to the Japanese school.', zh: '你好。欢迎来到日语学校。', face: 'smile' },
+    { jp: 'はじめまして。{田中|たなか}です。', ro: 'Hajimemashite. Tanaka desu.', en: "Nice to meet you. I'm Tanaka.", zh: '初次见面。我是田中。', introduce: true, act: 'bow' },
+    { jp: 'この{学校|がっこう}の {先生|せんせい}です。', ro: 'Kono gakkō no sensei desu.', en: "I'm a teacher at this school.", zh: '我是这所学校的老师。' },
+    { id: 'ask', jp: 'あなたは？', ro: 'Anata wa?', en: 'And you?', zh: '你呢？',
+      choices: [
+        { jp: 'はじめまして。よろしく おねがいします。', ro: 'Hajimemashite. Yoroshiku onegaishimasu.', en: 'Nice to meet you. Please treat me well.', zh: '初次见面，请多关照。', next: 'good' },
+        { jp: 'さようなら。', ro: 'Sayōnara.', en: 'Goodbye.', zh: '再见。', next: 'bye' },
+        { jp: 'ありがとう。', ro: 'Arigatō.', en: 'Thank you.', zh: '谢谢。', next: 'thanks' },
+      ] },
+    { id: 'bye', jp: 'えっ？ まだ「さようなら」じゃないですよ。', ro: 'E? Mada "sayōnara" ja nai desu yo.', en: 'Huh? It\'s not "goodbye" yet!', zh: '诶？还不是说"再见"的时候哦。', face: 'surprised', next: 'ask' },
+    { id: 'thanks', jp: 'ふふ。ここは「はじめまして」ですね。', ro: 'Fufu. Koko wa "hajimemashite" desu ne.', en: 'Heh. Here you\'d say "hajimemashite".', zh: '呵呵。这里应该说"初次见面"哦。', face: 'smile', next: 'ask' },
+    { id: 'good', jp: 'はい、よろしく おねがいします！', ro: 'Hai, yoroshiku onegaishimasu!', en: 'Yes, nice to meet you too!', zh: '好的，请多关照！', face: 'smile', act: 'bow' },
+    { id: 'class', jp: '{初級|しょきゅう}クラスは あちらです。', ro: 'Shokyū kurasu wa achira desu.', en: 'The beginner class is over there.', zh: '初级班在那边。', act: 'point' },
+    { jp: 'がんばってください！', ro: 'Ganbatte kudasai!', en: 'Do your best!', zh: '加油！', face: 'smile', act: 'wave', end: true },
+    { id: 'again', by: 'narr', jp: 'チーン♪', ro: 'chīn', en: '(You ring the bell.)', zh: '（你按了铃。）' },
+    { jp: 'あ、また {会|あ}いましたね。', ro: 'A, mata aimashita ne.', en: 'Oh, we meet again.', zh: '啊，又见面了。', face: 'smile', act: 'nod', next: 'class' },
+  ],
+};
+addTalkSpot(-20.6, 13.25, 1.4, 'yobu', TANAKA_DAY1, SCH.FL);
+//@src 367-tanaka-3d.js
+// ---------------------------------------------------------------- 田中先生 in 3D, at the school's 受付 window
+// He works at a desk in the teachers' room (a shape behind the frosted glass). Ring the bell (366) and he walks to the
+// window, the glass slides open and he talks with you: he looks at you, blinks, moves his mouth with his voice,
+// smiles, bows at はじめまして, points to the class and waves goodbye. When the talk ends the glass closes and he goes back.
+const TANAKA3D = makePerson3d({
+  skin: '#F9DEC8', hair: '#3A2D27', shirt: '#EEF1F3', vest: '#5D6F8F', tie: '#B8544B',
+  pants: '#3B3F4C', shoes: '#6E4B33', glasses: true, lanyard: '#3F7F67',
+});
+people3d.tanaka = TANAKA3D;
+scene.add(TANAKA3D.root);
+{
+  const P = TANAKA3D, AWAY = [-21.35, 10.75, Math.PI * .85], WIN = [-20.6, 12.14, 0];
+  P.root.position.set(AWAY[0], SCH.FL, AWAY[1]); P.root.rotation.y = AWAY[2];
+  const S = { here: false, leaveIn: 0, open: 0, line: null };
+  const head = new THREE.Vector3();
+  people3dStage.push(dt => {
+    const T = talking && talking.script.who === 'tanaka' ? talking : null;
+    if (T && !S.here) { S.here = true; S.leaveIn = 0; P.goTo(WIN[0], WIN[1], WIN[2]); }
+    if (!T && S.here) { S.here = false; S.leaveIn = .7; S.line = null; P.face = ''; P.act('nod'); }
+    if (S.leaveIn > 0 && (S.leaveIn -= dt) <= 0) P.goTo(AWAY[0], AWAY[1], AWAY[2]);
+    // the frosted pane slides open once he's at the window
+    const atWin = S.here && Math.hypot(P.root.position.x - WIN[0], P.root.position.z - WIN[1]) < .08;
+    S.open += ((atWin ? 1 : 0) - S.open) * Math.min(1, dt * 4);
+    if (SCH.pane) SCH.pane.position.x = -20.6 - S.open * .82;
+    // each new line: his face and gesture
+    if (T && T.line !== S.line) {
+      S.line = T.line;
+      const by = T.line.by || 'npc';
+      if (by === 'npc') { P.face = T.line.face || ''; if (T.line.act) P.act(T.line.act); }
+      else if (by === 'me') P.face = '';
+    }
+    P.speaking = !!(T && T.line && (T.line.by || 'npc') === 'npc' &&
+      (!T.done || (voiceAudio && !voiceAudio.paused) || ('speechSynthesis' in window && speechSynthesis.speaking)));
+    P.update(dt, camera.position);
+    // your view turns to him: he stands a little right of centre, above the dialogue box
+    if (T) {
+      head.set(P.root.position.x, SCH.FL + 1.84, P.root.position.z);
+      const dx = head.x - camera.position.x, dz = head.z - camera.position.z, dy = head.y - .3 - camera.position.y;
+      const yaw = Math.atan2(-dx, -dz) + (innerWidth > 700 ? .2 : 0), pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      const k = Math.min(1, dt * 3);
+      player.yaw += Math.atan2(Math.sin(yaw - player.yaw), Math.cos(yaw - player.yaw)) * k;
+      player.pitch += (pitch - player.pitch) * k;
+      if (!seated) { player.pos.x += (-20.75 - player.pos.x) * k; player.pos.z += (13.9 - player.pos.z) * k; }   // a polite step back
+    }
+  });
+}
 //@src 370-loop.js
 // ================================================================ loop
 const clock = new THREE.Clock();
@@ -4720,6 +5302,7 @@ function frame() {
   placeSun(player.pos.z - 15);
   sky.material.uniforms.time.value = t;
   updateLife(dt);
+  updatePeople3d(dt);
   if (train) updateTrain(dt);
   const on = Math.sin(t * 6) > 0;
   for (const m of blinkers) m.emissiveIntensity = (on ? 1 : .15) * (TIMES[current].night ? 2.2 : 1.2);
@@ -4747,6 +5330,7 @@ Promise.race([
   setTime(params.get('t') && TIMES[params.get('t')] ? params.get('t') : 'hiru');
   const c = params.get('cam');
   if (c) { const [x, z, yaw, pitch, y = 0] = c.split(',').map(Number); player.pos.set(x, 0, z); player.yaw = yaw; player.pitch = pitch; player.fy = floorAt(x, z, y) ?? groundY(x, z); }
+  else if (!params.has('bench')) player.pos.set(0, 0, 27), player.yaw = 0, player.pitch = .05, player.fy = floorAt(player.pos.x, player.pos.z, 0) ?? groundY(player.pos.x, player.pos.z);   // you start in the street, school on the left, café on the right
   else if (START.seat) {
     // Day 1 opens with you waking up on the bench outside みなと駅, looking up toward the station sign
     const s = START.seat;

@@ -11,6 +11,7 @@ function tapAt(x, y) {
   // a click only reads signs; sitting, standing up and actions are on E or the on-screen button
   if (!hit || hit.distance > 35) { card.style.display = 'none'; return; }
   shown = hit.object.userData.info; showCard();
+  speak(shown.ruby.map(([k]) => k).join(''), 'narr');   // 364-voice.js: the narrator reads the sign aloud
   if (locked()) document.exitPointerLock();
 }
 function showCard() {

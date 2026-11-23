@@ -213,7 +213,7 @@ function buildSchool() {
   sign({ lines: [{ t: '土足禁止', size: .55, color: '#FFFFFF' }], w: .8, h: .26, bg: '#D8433F', fg: '#FFF', frame: false }, -23.2, FL + 1.55, 17.42, Math.PI, hint.dosoku, G);
   // the reception window into the teachers' room: frosted sliding glass, a ledge with a bell and a visitor book
   { const rz = 12.5, frost = std('#E3ECEF', { transparent: true, opacity: .82, roughness: .3 });
-    for (const [a, b] of [[-21.85, -21.0], [-21.05, -20.15]]) box(b - a, 1.02, .02, frost, (a + b) / 2, 1.55, rz + (a < -21.5 ? .01 : -.01), G, false);
+    for (const [a, b] of [[-21.85, -21.0], [-21.05, -20.15]]) { const p = box(b - a, 1.02, .02, frost, (a + b) / 2, 1.55, rz + (a < -21.5 ? .01 : -.01), G, false); if (a > -21.5) { SCH.pane = p; dynamic.add(p); p.userData.noCollide = true; } }   // the right pane slides open (367-tanaka-3d.js)
     for (const x of [-21.85, -21.0, -20.15]) box(.04, 1.1, .08, alu, x, 1.55, rz, G, false);
     box(1.76, .04, .4, wood, -21.0, 1.0, rz + .2, G);
     box(.22, .03, .3, std('#2E3550'), -21.4, 1.035, rz + .22, G, false);
