@@ -111,6 +111,6 @@ Promise.race([
     player.pos.set(s.x, 0, s.z); eyeY = s.eye; player.yaw = 2.7; player.pitch = .12;
   }
   document.getElementById('loading').remove();
-  if (params.has('debug')) Object.assign(window, { player, TRAIN, STA, floorAt, blocked });
+  if (params.has('debug')) Object.assign(window, { player, TRAIN, STA, floorAt, blocked, people3d, cafeDoor });
   frame();
 });

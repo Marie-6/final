@@ -3,7 +3,7 @@
 // like a picture-book illustration. Each person blinks, breathes, turns their head toward you, moves their mouth while
 // they talk, changes face (smile ^‿^, surprised), and can walk, bow, wave and point.
 //
-// makePerson3d({ skin, hair, shirt, vest, tie, pants, shoes, glasses, lanyard }) → person
+// makePerson3d({ skin, hair, hairStyle: 'short' | 'bob', bun, lashes, lips, shirt, vest, tie, apron, pants, shoes, glasses, lanyard, scale }) → person
 //   person.root            the group to place in the world (faces +z)
 //   person.face = 'smile' | 'surprised' | ''     person.speaking = true/false
 //   person.act('bow' | 'wave' | 'point' | 'nod')  person.goTo(x, z, faceAngle)   person.update(dt, lookAt?)
@@ -35,7 +35,7 @@ function makePerson3d(o) {
     pants: p3mat(o.pants || '#3A3F4E'), shoes: p3mat(o.shoes || '#6B4A32', { roughness: .6 }),
     ink: new THREE.MeshStandardMaterial({ color: '#2A211C', roughness: .5 }),
     shine: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
-    mouth: new THREE.MeshStandardMaterial({ color: '#7A3634', roughness: .7 }),
+    mouth: new THREE.MeshStandardMaterial({ color: o.lips || '#7A3634', roughness: .7 }),
     blush: new THREE.MeshBasicMaterial({ color: '#F2958A', transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     frame: new THREE.MeshStandardMaterial({ color: o.glassesColor || '#3B2A22', roughness: .45, metalness: .2 }),
     lens: new THREE.MeshStandardMaterial({ color: '#DDEBF2', transparent: true, opacity: .14, roughness: .05, depthWrite: false }),
@@ -79,6 +79,15 @@ function makePerson3d(o) {
     }
   }
   add(new THREE.CylinderGeometry(.06, .07, .05, 20), M.shirt, upper, 0, .525, 0, 1, 1, .9);   // shirt collar band
+  // a café apron: a curved panel over the front from chest to thigh, a neck strap and waist ties
+  if (o.apron) {
+    const am = p3mat(o.apron);
+    const ap = add(new THREE.CylinderGeometry(.19, .215, .62, 28, 1, true, -.95, 1.9), am, upper, 0, -.01, 0, 1, 1, .74);
+    ap.material = am.clone(); ap.material.side = THREE.DoubleSide;
+    for (const s of [-1, 1]) { const st = add(new THREE.CapsuleGeometry(.008, .2, 4, 6), am, upper, s * .085, .4, .1); st.rotation.set(-.55, 0, s * .45); }   // neck straps
+    for (const s of [-1, 1]) add(new THREE.CapsuleGeometry(.007, .09, 4, 6), am, upper, s * .185, .08, -.04, 1).rotation.set(.3, 0, s * .5);   // the ties
+    add(new THREE.CircleGeometry(.03, 20), p3mat(o.apronLogo || '#EFE3CC'), upper, 0, .2, .148).rotation.x = -.03;   // café logo
+  }
   // lanyard and ID card
   if (o.lanyard) {
     const strap = p3mat(o.lanyard);
@@ -122,6 +131,7 @@ function makePerson3d(o) {
     const e = onFace(new THREE.Group(), s * EYE_A, EYE_B, 0);
     add(P3_SPHERE, M.ink, e, 0, 0, 0, .016, .023, .008);
     add(P3_SPHERE, M.shine, e, s * -.004 + .005, .008, .007, .0045);
+    if (o.lashes) add(new THREE.CapsuleGeometry(.0035, .012, 4, 6), M.ink, e, s * .017, .019, .002).rotation.z = s * -.85;   // a little flick of lashes
     return e;
   });
   F.smiles = [-1, 1].map(s => {                                     // ^ ^ happy closed eyes
@@ -130,7 +140,7 @@ function makePerson3d(o) {
   });
   F.brows = [-1, 1].map(s => {
     const g = onFace(new THREE.Group(), s * .3, .21, .001);
-    const b = add(new THREE.CapsuleGeometry(.0055, .028, 4, 8), M.hair, g); b.rotation.z = Math.PI / 2 + s * .12;
+    const b = add(new THREE.CapsuleGeometry(.0055, .028, 4, 8), M.hair, g); b.rotation.z = Math.PI / 2 - s * .1;   // inner ends a touch higher: a kind look
     return g;
   });
   F.brows.forEach(b => (b.userData.y = b.position.y));
@@ -157,23 +167,35 @@ function makePerson3d(o) {
   }
   // ---- hair: a cap tilted back (forehead shows, nape covered), a side-swept fringe, a little volume on top
   const cap = add(new THREE.SphereGeometry(.159, 36, 24, 0, Math.PI * 2, 0, 1.78), M.hair, H, 0, .006, -.006, 1.03, 1.03, 1.03);
-  cap.rotation.x = -.6;
-  const fringe = add(P3_SPHERE, M.hair, H, .025, .098, .075, .125, .05, .07); fringe.rotation.set(-.55, 0, -.22);
-  const fringe2 = add(P3_SPHERE, M.hair, H, -.08, .085, .06, .07, .045, .06); fringe2.rotation.set(-.4, .3, .35);
-  add(P3_SPHERE, M.hair, H, 0, .02, -.06, .158, .14, .12);          // back and nape
-  add(P3_SPHERE, M.hair, H, -.03, .13, -.01, .12, .05, .12).rotation.z = .12;   // volume on top
-  for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .14, .03, -.01, .03, .07, .06);   // sideburns over the ears' tops
+  if (o.hairStyle === 'bob') {                                      // a chin-length bob with blunt bangs (and a bun)
+    cap.rotation.x = -.45;
+    add(P3_SPHERE, M.hair, H, 0, .112, .062, .142, .058, .078).rotation.x = -.3;          // bangs
+    for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .128, -.045, -.012, .05, .135, .11).rotation.z = s * -.08;   // side panels to the chin
+    add(P3_SPHERE, M.hair, H, 0, -.035, -.055, .165, .155, .125);   // the back, down to the neck
+    if (o.bun) add(P3_SPHERE, M.hair, H, 0, .085, -.155, .06, .058, .055);
+  } else {
+    cap.rotation.x = -.6;
+    const fringe = add(P3_SPHERE, M.hair, H, .025, .098, .075, .125, .05, .07); fringe.rotation.set(-.55, 0, -.22);
+    const fringe2 = add(P3_SPHERE, M.hair, H, -.08, .085, .06, .07, .045, .06); fringe2.rotation.set(-.4, .3, .35);
+    add(P3_SPHERE, M.hair, H, 0, .02, -.06, .158, .14, .12);          // back and nape
+    add(P3_SPHERE, M.hair, H, -.03, .13, -.01, .12, .05, .12).rotation.z = .12;   // volume on top
+    for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .14, .03, -.01, .03, .07, .06);   // sideburns over the ears' tops
+  }
+  if (o.scale) root.scale.setScalar(o.scale);
 
   root.traverse(m => { if (m.isMesh) { m.userData.noCollide = true; dynamic.add(m); } });
 
   // ---------------- animation
   const P = {
     root, face: '', speaking: false, mouth: 0,
-    blinkIn: 2, blink: 0, t: Math.random() * 10, walk: 0, walkPhase: 0,
+    blinkIn: 2, blink: 0, speed: .95, t: Math.random() * 10, walk: 0, walkPhase: 0,
     target: null, faceAngle: null, gesture: null, look: new THREE.Vector3(), lookW: 0, headYaw: 0, headPitch: 0,
   };
-  P.goTo = (x, z, faceAngle) => { P.target = new THREE.Vector2(x, z); P.faceAngle = faceAngle; };
-  P.act = name => { P.gesture = { name, t: 0, dur: { bow: 1.6, wave: 1.8, point: 1.8, nod: .7 }[name] || 1 }; };
+  P.path = [];   // waypoints still to walk after the current target (so she can walk around a counter)
+  P.goTo = (x, z, faceAngle, via = []) => {
+    const pts = [...via, [x, z]]; P.path = pts.slice(1); P.target = new THREE.Vector2(...pts[0]); P.faceAngle = faceAngle;
+  };
+  P.act = name => { P.gesture = { name, t: 0, dur: { bow: 1.6, wave: 1.8, point: 1.8, nod: .7, offer: 2.2 }[name] || 1 }; };
   const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
   const turnTo = (cur, want, k) => cur + Math.atan2(Math.sin(want - cur), Math.cos(want - cur)) * k;
   P.update = (dt, lookAt) => {
@@ -183,11 +205,12 @@ function makePerson3d(o) {
     if (P.target) {
       const dx = P.target.x - root.position.x, dz = P.target.y - root.position.z, d = Math.hypot(dx, dz);
       if (d > .02) {
-        const step = Math.min(d, .95 * dt);
+        const step = Math.min(d, P.speed * dt);
         root.position.x += dx / d * step; root.position.z += dz / d * step;
         root.rotation.y = turnTo(root.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
         moving = 1;
-      } else if (P.faceAngle != null) root.rotation.y = turnTo(root.rotation.y, P.faceAngle, Math.min(1, dt * 6));
+      } else if (P.path.length) P.target.set(...P.path.shift());
+      else if (P.faceAngle != null) root.rotation.y = turnTo(root.rotation.y, P.faceAngle, Math.min(1, dt * 6));
     }
     P.walk += (moving - P.walk) * Math.min(1, dt * 8);
     P.walkPhase += dt * 7.5 * P.walk;
@@ -224,6 +247,9 @@ function makePerson3d(o) {
       } else if (G.name === 'point') {               // an open palm toward "over there" (あちら)
         right.sh.rotation.x = -env * 1.15; right.sh.rotation.z = -.09 - env * .22;
         right.el.rotation.x = -env * .35; right.hand.rotation.y = -env * 1.2;
+      } else if (G.name === 'offer') {               // both hands forward, handing something over
+        arms.forEach(A => { A.sh.rotation.x = -env * .95; A.sh.rotation.z = A.s * (.09 - env * .12); A.el.rotation.x = -.18 - env * .55; });
+        bow = env * .12;
       } else if (G.name === 'nod') headNod = Math.sin(k * Math.PI) * .22;
       if (k >= 1) P.gesture = null;
     }
@@ -260,3 +286,13 @@ function makePerson3d(o) {
 // per-frame staging (who walks where and when), one function per character; the main loop calls updatePeople3d
 const people3dStage = [];
 function updatePeople3d(dt) { for (const f of people3dStage) f(dt); }
+// while you talk with someone, your view turns to them (a little right of centre, above the dialogue box)
+// and you ease to a polite spot in front of them
+function people3dFrame(P, headY, standX, standZ, dt) {
+  const dx = P.root.position.x - camera.position.x, dz = P.root.position.z - camera.position.z, dy = headY - .3 - camera.position.y;
+  const yaw = Math.atan2(-dx, -dz) + (innerWidth > 700 ? .2 : 0), pitch = Math.atan2(dy, Math.hypot(dx, dz));
+  const k = Math.min(1, dt * 3);
+  player.yaw += Math.atan2(Math.sin(yaw - player.yaw), Math.cos(yaw - player.yaw)) * k;
+  player.pitch += (pitch - player.pitch) * k;
+  if (!seated) { player.pos.x += (standX - player.pos.x) * k; player.pos.z += (standZ - player.pos.z) * k; }
+}

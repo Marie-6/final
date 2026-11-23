@@ -91,6 +91,7 @@ function buildStreet() {
   // the café across the street from the school
   B = building(1, 24, 15, { h: 10, wall: '#F3D9A5', style: 'tile', floors: 2, cols: 2, ground: 'shop', balcony: '#FFFFFF', lit: .8, interior: true, shutter: false, posters: false });
   cafeInterior(B);
+  placeBarista();   // 369-barista-3d.js
   awning(B, '#D8433F', '#FFFFFF');
   cafeFrontSign(B, B.zc);
   blade(B, 'コーヒー', ['#3E2820', '#F4E2C4', '#C9A45A', '#2A1C16'], hint.kohi, undefined, 1.0);

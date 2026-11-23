@@ -12,7 +12,6 @@ scene.add(TANAKA3D.root);
   const P = TANAKA3D, AWAY = [-21.35, 10.75, Math.PI * .85], WIN = [-20.6, 12.14, 0];
   P.root.position.set(AWAY[0], SCH.FL, AWAY[1]); P.root.rotation.y = AWAY[2];
   const S = { here: false, leaveIn: 0, open: 0, line: null };
-  const head = new THREE.Vector3();
   people3dStage.push(dt => {
     const T = talking && talking.script.who === 'tanaka' ? talking : null;
     if (T && !S.here) { S.here = true; S.leaveIn = 0; P.goTo(WIN[0], WIN[1], WIN[2]); }
@@ -32,15 +31,6 @@ scene.add(TANAKA3D.root);
     P.speaking = !!(T && T.line && (T.line.by || 'npc') === 'npc' &&
       (!T.done || (voiceAudio && !voiceAudio.paused) || ('speechSynthesis' in window && speechSynthesis.speaking)));
     P.update(dt, camera.position);
-    // your view turns to him: he stands a little right of centre, above the dialogue box
-    if (T) {
-      head.set(P.root.position.x, SCH.FL + 1.84, P.root.position.z);
-      const dx = head.x - camera.position.x, dz = head.z - camera.position.z, dy = head.y - .3 - camera.position.y;
-      const yaw = Math.atan2(-dx, -dz) + (innerWidth > 700 ? .2 : 0), pitch = Math.atan2(dy, Math.hypot(dx, dz));
-      const k = Math.min(1, dt * 3);
-      player.yaw += Math.atan2(Math.sin(yaw - player.yaw), Math.cos(yaw - player.yaw)) * k;
-      player.pitch += (pitch - player.pitch) * k;
-      if (!seated) { player.pos.x += (-20.75 - player.pos.x) * k; player.pos.z += (13.9 - player.pos.z) * k; }   // a polite step back
-    }
+    if (T) people3dFrame(P, SCH.FL + 1.84, -20.75, 13.9, dt);   // your view turns to him; a polite step back
   });
 }

@@ -2329,6 +2329,7 @@ function cafeInterior(B) {
   pastryCase(G, cxa + caseLen / 2, czc, caseLen, glassM, darkWood, chrome);
   // the register sits on the return leg, so customers queue in the open floor in front of it
   const regZ = za + 3.9;
+  cafeDoor.reg = { x: rx, z: regZ, floor: .15, aisleX: cxe + .4, aisleZ: za + 1.12, machineX: fx + 6.0 };   // the barista's spots behind the counter (369-barista-3d.js)
   vintageRegister(G, rx - .05, 1.23, regZ, brass, -Math.PI / 2);
   sign({ lines: [{ t: 'レジ', size: .6, color: '#FFFFFF' }], w: .42, h: .18, bg: '#5B3A2E', fg: '#FFF', frame: false }, rx, 1.95, regZ, -Math.PI / 2, hint.reji);
   cyl(.004, .004, .5, blackM, rx, 2.3, regZ, 4, G, false);
@@ -4015,6 +4016,7 @@ function buildStreet() {
   // the café across the street from the school
   B = building(1, 24, 15, { h: 10, wall: '#F3D9A5', style: 'tile', floors: 2, cols: 2, ground: 'shop', balcony: '#FFFFFF', lit: .8, interior: true, shutter: false, posters: false });
   cafeInterior(B);
+  placeBarista();   // 369-barista-3d.js
   awning(B, '#D8433F', '#FFFFFF');
   cafeFrontSign(B, B.zc);
   blade(B, 'コーヒー', ['#3E2820', '#F4E2C4', '#C9A45A', '#2A1C16'], hint.kohi, undefined, 1.0);
@@ -4391,7 +4393,7 @@ function updateLife(dt) {
 // like a picture-book illustration. Each person blinks, breathes, turns their head toward you, moves their mouth while
 // they talk, changes face (smile ^‿^, surprised), and can walk, bow, wave and point.
 //
-// makePerson3d({ skin, hair, shirt, vest, tie, pants, shoes, glasses, lanyard }) → person
+// makePerson3d({ skin, hair, hairStyle: 'short' | 'bob', bun, lashes, lips, shirt, vest, tie, apron, pants, shoes, glasses, lanyard, scale }) → person
 //   person.root            the group to place in the world (faces +z)
 //   person.face = 'smile' | 'surprised' | ''     person.speaking = true/false
 //   person.act('bow' | 'wave' | 'point' | 'nod')  person.goTo(x, z, faceAngle)   person.update(dt, lookAt?)
@@ -4423,7 +4425,7 @@ function makePerson3d(o) {
     pants: p3mat(o.pants || '#3A3F4E'), shoes: p3mat(o.shoes || '#6B4A32', { roughness: .6 }),
     ink: new THREE.MeshStandardMaterial({ color: '#2A211C', roughness: .5 }),
     shine: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
-    mouth: new THREE.MeshStandardMaterial({ color: '#7A3634', roughness: .7 }),
+    mouth: new THREE.MeshStandardMaterial({ color: o.lips || '#7A3634', roughness: .7 }),
     blush: new THREE.MeshBasicMaterial({ color: '#F2958A', transparent: true, opacity: .42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     frame: new THREE.MeshStandardMaterial({ color: o.glassesColor || '#3B2A22', roughness: .45, metalness: .2 }),
     lens: new THREE.MeshStandardMaterial({ color: '#DDEBF2', transparent: true, opacity: .14, roughness: .05, depthWrite: false }),
@@ -4467,6 +4469,15 @@ function makePerson3d(o) {
     }
   }
   add(new THREE.CylinderGeometry(.06, .07, .05, 20), M.shirt, upper, 0, .525, 0, 1, 1, .9);   // shirt collar band
+  // a café apron: a curved panel over the front from chest to thigh, a neck strap and waist ties
+  if (o.apron) {
+    const am = p3mat(o.apron);
+    const ap = add(new THREE.CylinderGeometry(.19, .215, .62, 28, 1, true, -.95, 1.9), am, upper, 0, -.01, 0, 1, 1, .74);
+    ap.material = am.clone(); ap.material.side = THREE.DoubleSide;
+    for (const s of [-1, 1]) { const st = add(new THREE.CapsuleGeometry(.008, .2, 4, 6), am, upper, s * .085, .4, .1); st.rotation.set(-.55, 0, s * .45); }   // neck straps
+    for (const s of [-1, 1]) add(new THREE.CapsuleGeometry(.007, .09, 4, 6), am, upper, s * .185, .08, -.04, 1).rotation.set(.3, 0, s * .5);   // the ties
+    add(new THREE.CircleGeometry(.03, 20), p3mat(o.apronLogo || '#EFE3CC'), upper, 0, .2, .148).rotation.x = -.03;   // café logo
+  }
   // lanyard and ID card
   if (o.lanyard) {
     const strap = p3mat(o.lanyard);
@@ -4510,6 +4521,7 @@ function makePerson3d(o) {
     const e = onFace(new THREE.Group(), s * EYE_A, EYE_B, 0);
     add(P3_SPHERE, M.ink, e, 0, 0, 0, .016, .023, .008);
     add(P3_SPHERE, M.shine, e, s * -.004 + .005, .008, .007, .0045);
+    if (o.lashes) add(new THREE.CapsuleGeometry(.0035, .012, 4, 6), M.ink, e, s * .017, .019, .002).rotation.z = s * -.85;   // a little flick of lashes
     return e;
   });
   F.smiles = [-1, 1].map(s => {                                     // ^ ^ happy closed eyes
@@ -4518,7 +4530,7 @@ function makePerson3d(o) {
   });
   F.brows = [-1, 1].map(s => {
     const g = onFace(new THREE.Group(), s * .3, .21, .001);
-    const b = add(new THREE.CapsuleGeometry(.0055, .028, 4, 8), M.hair, g); b.rotation.z = Math.PI / 2 + s * .12;
+    const b = add(new THREE.CapsuleGeometry(.0055, .028, 4, 8), M.hair, g); b.rotation.z = Math.PI / 2 - s * .1;   // inner ends a touch higher: a kind look
     return g;
   });
   F.brows.forEach(b => (b.userData.y = b.position.y));
@@ -4545,23 +4557,35 @@ function makePerson3d(o) {
   }
   // ---- hair: a cap tilted back (forehead shows, nape covered), a side-swept fringe, a little volume on top
   const cap = add(new THREE.SphereGeometry(.159, 36, 24, 0, Math.PI * 2, 0, 1.78), M.hair, H, 0, .006, -.006, 1.03, 1.03, 1.03);
-  cap.rotation.x = -.6;
-  const fringe = add(P3_SPHERE, M.hair, H, .025, .098, .075, .125, .05, .07); fringe.rotation.set(-.55, 0, -.22);
-  const fringe2 = add(P3_SPHERE, M.hair, H, -.08, .085, .06, .07, .045, .06); fringe2.rotation.set(-.4, .3, .35);
-  add(P3_SPHERE, M.hair, H, 0, .02, -.06, .158, .14, .12);          // back and nape
-  add(P3_SPHERE, M.hair, H, -.03, .13, -.01, .12, .05, .12).rotation.z = .12;   // volume on top
-  for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .14, .03, -.01, .03, .07, .06);   // sideburns over the ears' tops
+  if (o.hairStyle === 'bob') {                                      // a chin-length bob with blunt bangs (and a bun)
+    cap.rotation.x = -.45;
+    add(P3_SPHERE, M.hair, H, 0, .112, .062, .142, .058, .078).rotation.x = -.3;          // bangs
+    for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .128, -.045, -.012, .05, .135, .11).rotation.z = s * -.08;   // side panels to the chin
+    add(P3_SPHERE, M.hair, H, 0, -.035, -.055, .165, .155, .125);   // the back, down to the neck
+    if (o.bun) add(P3_SPHERE, M.hair, H, 0, .085, -.155, .06, .058, .055);
+  } else {
+    cap.rotation.x = -.6;
+    const fringe = add(P3_SPHERE, M.hair, H, .025, .098, .075, .125, .05, .07); fringe.rotation.set(-.55, 0, -.22);
+    const fringe2 = add(P3_SPHERE, M.hair, H, -.08, .085, .06, .07, .045, .06); fringe2.rotation.set(-.4, .3, .35);
+    add(P3_SPHERE, M.hair, H, 0, .02, -.06, .158, .14, .12);          // back and nape
+    add(P3_SPHERE, M.hair, H, -.03, .13, -.01, .12, .05, .12).rotation.z = .12;   // volume on top
+    for (const s of [-1, 1]) add(P3_SPHERE, M.hair, H, s * .14, .03, -.01, .03, .07, .06);   // sideburns over the ears' tops
+  }
+  if (o.scale) root.scale.setScalar(o.scale);
 
   root.traverse(m => { if (m.isMesh) { m.userData.noCollide = true; dynamic.add(m); } });
 
   // ---------------- animation
   const P = {
     root, face: '', speaking: false, mouth: 0,
-    blinkIn: 2, blink: 0, t: Math.random() * 10, walk: 0, walkPhase: 0,
+    blinkIn: 2, blink: 0, speed: .95, t: Math.random() * 10, walk: 0, walkPhase: 0,
     target: null, faceAngle: null, gesture: null, look: new THREE.Vector3(), lookW: 0, headYaw: 0, headPitch: 0,
   };
-  P.goTo = (x, z, faceAngle) => { P.target = new THREE.Vector2(x, z); P.faceAngle = faceAngle; };
-  P.act = name => { P.gesture = { name, t: 0, dur: { bow: 1.6, wave: 1.8, point: 1.8, nod: .7 }[name] || 1 }; };
+  P.path = [];   // waypoints still to walk after the current target (so she can walk around a counter)
+  P.goTo = (x, z, faceAngle, via = []) => {
+    const pts = [...via, [x, z]]; P.path = pts.slice(1); P.target = new THREE.Vector2(...pts[0]); P.faceAngle = faceAngle;
+  };
+  P.act = name => { P.gesture = { name, t: 0, dur: { bow: 1.6, wave: 1.8, point: 1.8, nod: .7, offer: 2.2 }[name] || 1 }; };
   const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
   const turnTo = (cur, want, k) => cur + Math.atan2(Math.sin(want - cur), Math.cos(want - cur)) * k;
   P.update = (dt, lookAt) => {
@@ -4571,11 +4595,12 @@ function makePerson3d(o) {
     if (P.target) {
       const dx = P.target.x - root.position.x, dz = P.target.y - root.position.z, d = Math.hypot(dx, dz);
       if (d > .02) {
-        const step = Math.min(d, .95 * dt);
+        const step = Math.min(d, P.speed * dt);
         root.position.x += dx / d * step; root.position.z += dz / d * step;
         root.rotation.y = turnTo(root.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
         moving = 1;
-      } else if (P.faceAngle != null) root.rotation.y = turnTo(root.rotation.y, P.faceAngle, Math.min(1, dt * 6));
+      } else if (P.path.length) P.target.set(...P.path.shift());
+      else if (P.faceAngle != null) root.rotation.y = turnTo(root.rotation.y, P.faceAngle, Math.min(1, dt * 6));
     }
     P.walk += (moving - P.walk) * Math.min(1, dt * 8);
     P.walkPhase += dt * 7.5 * P.walk;
@@ -4612,6 +4637,9 @@ function makePerson3d(o) {
       } else if (G.name === 'point') {               // an open palm toward "over there" (あちら)
         right.sh.rotation.x = -env * 1.15; right.sh.rotation.z = -.09 - env * .22;
         right.el.rotation.x = -env * .35; right.hand.rotation.y = -env * 1.2;
+      } else if (G.name === 'offer') {               // both hands forward, handing something over
+        arms.forEach(A => { A.sh.rotation.x = -env * .95; A.sh.rotation.z = A.s * (.09 - env * .12); A.el.rotation.x = -.18 - env * .55; });
+        bow = env * .12;
       } else if (G.name === 'nod') headNod = Math.sin(k * Math.PI) * .22;
       if (k >= 1) P.gesture = null;
     }
@@ -4648,6 +4676,16 @@ function makePerson3d(o) {
 // per-frame staging (who walks where and when), one function per character; the main loop calls updatePeople3d
 const people3dStage = [];
 function updatePeople3d(dt) { for (const f of people3dStage) f(dt); }
+// while you talk with someone, your view turns to them (a little right of centre, above the dialogue box)
+// and you ease to a polite spot in front of them
+function people3dFrame(P, headY, standX, standZ, dt) {
+  const dx = P.root.position.x - camera.position.x, dz = P.root.position.z - camera.position.z, dy = headY - .3 - camera.position.y;
+  const yaw = Math.atan2(-dx, -dz) + (innerWidth > 700 ? .2 : 0), pitch = Math.atan2(dy, Math.hypot(dx, dz));
+  const k = Math.min(1, dt * 3);
+  player.yaw += Math.atan2(Math.sin(yaw - player.yaw), Math.cos(yaw - player.yaw)) * k;
+  player.pitch += (pitch - player.pitch) * k;
+  if (!seated) { player.pos.x += (standX - player.pos.x) * k; player.pos.z += (standZ - player.pos.z) * k; }
+}
 //@src 320-collisions.js
 // ================================================================ collisions
 const colliders = [], RADIUS = .32;
@@ -4932,7 +4970,10 @@ try {
   s.onerror = () => {};
   document.head.appendChild(s);
 }
-function pickJaVoice() { jaVoice = speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)) || null; }
+// without an Inworld key: the computer's Japanese voices, a man's for Tanaka and a woman's for the barista when there's one
+const BUILTIN_VOICE = { tanaka: { like: /otoya|hattori|ichiro|keita|male/i, pitch: .9 }, barista: { like: /kyoko|o-ren|nanami|ayumi|haruka|female/i, pitch: 1.15 } };
+let jaVoices = [];
+function pickJaVoice() { jaVoices = speechSynthesis.getVoices().filter(v => /^ja/i.test(v.lang)); jaVoice = jaVoices[0] || null; }
 if ('speechSynthesis' in window) { pickJaVoice(); speechSynthesis.onvoiceschanged = pickJaVoice; }
 
 // Safari only lets audio play after a network wait if that same <audio> element was started inside a click/key press,
@@ -4951,11 +4992,12 @@ function stopVoice() {
   if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
-function sayBuiltIn(text, rate = 1) {
+function sayBuiltIn(text, rate = 1, who) {
   if (!('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP'; if (jaVoice) u.voice = jaVoice; u.rate = 0.9 * rate;
+    const B = BUILTIN_VOICE[who];
+    u.lang = 'ja-JP'; u.voice = (B && jaVoices.find(v => B.like.test(v.name))) || jaVoice; u.rate = 0.9 * rate; if (B) u.pitch = B.pitch;
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -4983,9 +5025,9 @@ function speak(text, who, rate = VOICE_RATE[who] || 1) {
   const clean = String(text).replace(/\{([^|}]+)\|[^}]+\}/g, '$1').replace(/[〜~♪]/g, '');
   if (!clean.trim()) return;
   const voiceId = VOICES[who];
-  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate);
+  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who);
   const req = voiceReq;
-  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate); });
+  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who); });
 }
 //@src 365-talk-interaction.js
 // ---------------------------------------------------------------- talk: visual-novel conversations with 2D portraits
@@ -5098,7 +5140,7 @@ function talkShow(line, after) {
   const toks = talkTokens(line.jp), jp = talkQ('.jp');
   let n = 0;
   clearInterval(T.typing);
-  T.line = line; T.after = after; T.done = false;
+  T.line = line; T.after = after; T.done = false; T.hold = !!line.wait;   // wait: the line stays until talkRelease()
   const tick = () => { n++; jp.innerHTML = talkRuby(toks.slice(0, n)); if (n >= toks.length) talkFinish(); };
   jp.innerHTML = '';
   T.finish = () => { n = toks.length; jp.innerHTML = talkRuby(toks); };
@@ -5113,8 +5155,10 @@ function talkFinish() {
   if (line.introduce) T.known = true, talkMet.add(T.script.who);
   if (line.choices && !T.after) {
     talkQ('.ch').innerHTML = line.choices.map((c, k) => `<button type="button" data-k="${k}"><kbd>${k + 1}</kbd><span>${talkRuby(talkTokens(c.jp))}<small>${talkSub(c)}</small></span></button>`).join('');
-  } else talkQ('.nx').classList.add('in');
+  } else if (!T.hold) talkQ('.nx').classList.add('in');
 }
+// a `wait` line (e.g. the barista making your coffee) moves on by itself when the scene is done
+function talkRelease() { const T = talking; if (!T || !T.hold) return; T.hold = false; talkFinish(); talkNext(); }
 function talkChoose(k) {
   const T = talking, c = T && T.done && T.line.choices && !T.after && T.line.choices[k];
   if (!c) return;
@@ -5122,6 +5166,7 @@ function talkChoose(k) {
 }
 function talkNext() {
   const T = talking; if (!T) return;
+  if (T.hold) return;                                                       // something is still happening
   if (!T.done) return talkFinish();
   if (T.line.choices && !T.after) return;                                   // waiting for a reply
   if (T.after !== undefined) return talkGo(T.after);
@@ -5192,7 +5237,6 @@ scene.add(TANAKA3D.root);
   const P = TANAKA3D, AWAY = [-21.35, 10.75, Math.PI * .85], WIN = [-20.6, 12.14, 0];
   P.root.position.set(AWAY[0], SCH.FL, AWAY[1]); P.root.rotation.y = AWAY[2];
   const S = { here: false, leaveIn: 0, open: 0, line: null };
-  const head = new THREE.Vector3();
   people3dStage.push(dt => {
     const T = talking && talking.script.who === 'tanaka' ? talking : null;
     if (T && !S.here) { S.here = true; S.leaveIn = 0; P.goTo(WIN[0], WIN[1], WIN[2]); }
@@ -5212,16 +5256,114 @@ scene.add(TANAKA3D.root);
     P.speaking = !!(T && T.line && (T.line.by || 'npc') === 'npc' &&
       (!T.done || (voiceAudio && !voiceAudio.paused) || ('speechSynthesis' in window && speechSynthesis.speaking)));
     P.update(dt, camera.position);
-    // your view turns to him: he stands a little right of centre, above the dialogue box
-    if (T) {
-      head.set(P.root.position.x, SCH.FL + 1.84, P.root.position.z);
-      const dx = head.x - camera.position.x, dz = head.z - camera.position.z, dy = head.y - .3 - camera.position.y;
-      const yaw = Math.atan2(-dx, -dz) + (innerWidth > 700 ? .2 : 0), pitch = Math.atan2(dy, Math.hypot(dx, dz));
-      const k = Math.min(1, dt * 3);
-      player.yaw += Math.atan2(Math.sin(yaw - player.yaw), Math.cos(yaw - player.yaw)) * k;
-      player.pitch += (pitch - player.pitch) * k;
-      if (!seated) { player.pos.x += (-20.75 - player.pos.x) * k; player.pos.z += (13.9 - player.pos.z) * k; }   // a polite step back
+    if (T) people3dFrame(P, SCH.FL + 1.84, -20.75, 13.9, dt);   // your view turns to him; a polite step back
+  });
+}
+//@src 368-talk-barista.js
+// ---------------------------------------------------------------- talk: the barista at カフェ みなと's register
+// Order a coffee: hot or iced, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
+// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; give: true hands over the cup;
+// brew: true (on a narrator line) sends her to the espresso machine; wait: true holds the line until she is back.
+VERBS.chumon = { r: [['注文', 'ちゅうもん'], ['する', '']], ro: 'chūmon suru', en: 'Order', zh: '点单' };
+const BARISTA_DAY1 = {
+  who: 'barista', name: '店員さん', again: 'again',
+  lines: [
+    { jp: 'いらっしゃいませ！', ro: 'Irasshaimase!', en: 'Welcome!', zh: '欢迎光临！', face: 'smile', act: 'bow', introduce: true },
+    { id: 'order', jp: 'ご{注文|ちゅうもん}は？', ro: 'Go-chūmon wa?', en: 'What would you like?', zh: '您要点什么？',
+      choices: [
+        { jp: 'コーヒーを ください。', ro: 'Kōhī o kudasai.', en: 'A coffee, please.', zh: '请给我一杯咖啡。', next: 'coffee' },
+        { jp: 'お{水|みず}を ください。', ro: 'O-mizu o kudasai.', en: 'Some water, please.', zh: '请给我一杯水。', next: 'water' },
+        { jp: 'すみません、わかりません。', ro: 'Sumimasen, wakarimasen.', en: "Sorry, I don't understand.", zh: '对不起，我听不懂。', next: 'help' },
+      ] },
+    { id: 'water', jp: 'お{水|みず}は あちらです。セルフサービスです。', ro: 'O-mizu wa achira desu. Serufu sābisu desu.', en: "The water is over there. It's self-service.", zh: '水在那边，是自助的。', act: 'point', next: 'order' },
+    { id: 'help', jp: 'だいじょうぶですよ。コーヒーは いかがですか？', ro: 'Daijōbu desu yo. Kōhī wa ikaga desu ka?', en: "That's okay! How about a coffee?", zh: '没关系哦。来杯咖啡怎么样？', face: 'smile', next: 'order' },
+    { id: 'coffee', jp: 'コーヒーですね。ホットと アイス、どちらに しますか？', ro: 'Kōhī desu ne. Hotto to aisu, dochira ni shimasu ka?', en: 'A coffee. Hot or iced?', zh: '咖啡是吧。要热的还是冰的？',
+      choices: [
+        { jp: 'ホットで おねがいします。', ro: 'Hotto de onegaishimasu.', en: 'Hot, please.', zh: '请给我热的。', next: 'hot' },
+        { jp: 'アイスで おねがいします。', ro: 'Aisu de onegaishimasu.', en: 'Iced, please.', zh: '请给我冰的。', next: 'ice' },
+      ] },
+    { id: 'hot', jp: 'ホットコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Hotto kōhī, sanbyaku en desu.', en: "One hot coffee: that's 300 yen.", zh: '热咖啡，300日元。', order: 'hot', next: 'pay' },
+    { id: 'ice', jp: 'アイスコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Aisu kōhī, sanbyaku en desu.', en: "One iced coffee: that's 300 yen.", zh: '冰咖啡，300日元。', order: 'ice', next: 'pay' },
+    { id: 'pay', by: 'narr', jp: '（{300|さんびゃく}{円|えん}を はらう）', ro: '(sanbyaku en o harau)', en: '(You pay 300 yen.)', zh: '（你付了300日元。）' },
+    { jp: 'ちょうど いただきます。{少々|しょうしょう} お{待|ま}ちください。', ro: 'Chōdo itadakimasu. Shōshō omachi kudasai.', en: 'Exact change, thank you. One moment, please.', zh: '正好，收您钱了。请稍等。', act: 'nod' },
+    { by: 'narr', jp: '……', ro: '', en: '(She makes your coffee.)', zh: '（她在给你做咖啡。）', brew: true, wait: true },
+    { jp: 'お{待|ま}たせしました。どうぞ！', ro: 'Omatase shimashita. Dōzo!', en: 'Sorry to keep you waiting. Here you go!', zh: '让您久等了。请慢用！', face: 'smile', act: 'offer', give: true },
+    { jp: 'ありがとうございました！', ro: 'Arigatō gozaimashita!', en: 'Thank you very much!', zh: '谢谢光临！', face: 'smile', act: 'bow', end: true },
+    { id: 'again', jp: 'あ、いらっしゃいませ！ また {来|き}て くれましたね。', ro: 'A, irasshaimase! Mata kite kuremashita ne.', en: 'Oh, welcome! You came back.', zh: '啊，欢迎光临！你又来了呢。', face: 'smile', act: 'nod', next: 'order' },
+  ],
+};
+//@src 369-barista-3d.js
+// ---------------------------------------------------------------- the barista in 3D, behind カフェ みなと's register
+// She stands behind the レジ and looks up at you when you come near. Press E there to order (368-talk-barista.js):
+// she bows, turns to the machine to make your coffee, and hands you a hot paper cup or an iced coffee to drink (E).
+const BARISTA3D = makePerson3d({
+  skin: '#F8DCC6', hair: '#4A3128', hairStyle: 'bob', bun: true, lashes: true, lips: '#A85A55',
+  shirt: '#F4F1EA', apron: '#4E3B31', pants: '#33363F', shoes: '#2E2A28', scale: .95,
+});
+people3d.barista = BARISTA3D;
+scene.add(BARISTA3D.root);
+BARISTA3D.root.visible = false;   // until the café is built
+
+// a coffee in your hand: a hot paper cup with a sleeve and lid, or an iced coffee with a straw
+function holdCoffee(kind) {
+  if (holding) camera.remove(holding.g);
+  if (!camera.parent) scene.add(camera);
+  const g = new THREE.Group(); g.position.set(.2, -.2, -.45); camera.add(g);
+  let w;
+  if (kind === 'ice') {
+    mesh(new THREE.CylinderGeometry(.04, .032, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    w = mesh(new THREE.CylinderGeometry(.037, .031, .1, 16), std('#3A2116', { roughness: .2 }), 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
+    for (let i = 0; i < 4; i++) mesh(new THREE.BoxGeometry(.018, .018, .018), new THREE.MeshStandardMaterial({ color: '#F2FAFF', transparent: true, opacity: .6, roughness: .05 }), (i % 2 - .5) * .025, .03 - (i > 1) * .02, (i > 1 ? .5 : -.5) * .015, g, false).rotation.set(i, i * 2, 0);
+    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std('#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+  } else {
+    mesh(new THREE.CylinderGeometry(.04, .031, .115, 16), std('#F7F3EC', { roughness: .8 }), 0, 0, 0, g, false);
+    mesh(new THREE.CylinderGeometry(.0385, .034, .045, 16), std('#9A6B45', { roughness: .9 }), 0, -.008, 0, g, false);   // sleeve
+    mesh(new THREE.CylinderGeometry(.043, .042, .012, 16), std('#3B2A22', { roughness: .5 }), 0, .062, 0, g, false);     // lid
+    w = new THREE.Object3D(); g.add(w);
+  }
+  holding = { g, w, drink: true };
+}
+
+function placeBarista() {
+  const R = cafeDoor.reg; if (!R) return;
+  // she walks in the aisle behind the counter: down the register leg (x = aisleX), round the corner,
+  // then along the back bar (z = aisleZ) to the espresso machine; her spots leave room to bow without leaning into the counter
+  const P = BARISTA3D, home = [R.aisleX, R.z + .45, -Math.PI / 2], machine = [R.machineX, R.aisleZ, Math.PI];
+  const corner = [R.aisleX, R.aisleZ];
+  const pickup = [R.machineX, R.aisleZ, 0];   // turned around at the machine, facing you across the long counter
+  const inBackAisle = () => P.root.position.z < R.aisleZ + .45;
+  const walk = to => P.goTo(...to, inBackAisle() === (to === machine) ? [] : [corner]);
+  P.root.position.set(home[0], R.floor, home[1]); P.root.rotation.y = home[2]; P.root.visible = true;
+  addTalkSpot(R.x - .9, R.z + .3, 1.5, 'chumon', BARISTA_DAY1);
+  P.speed = 1.3;
+  const S = { line: null, order: 'hot', near: false, act: null, give: false, brew: 0, served: false };
+  const arrived = () => !P.path.length && Math.hypot(P.target.x - P.root.position.x, P.target.y - P.root.position.z) < .03;
+  people3dStage.push(dt => {
+    const T = talking && talking.script.who === 'barista' ? talking : null;
+    if (T && T.line !== S.line) {
+      S.line = T.line;
+      const L = T.line, by = L.by || 'npc';
+      if (L.order) S.order = L.order;
+      if (L.brew) { walk(machine); S.brew = 1; } else if (by === 'npc' && !S.served) walk(home);
+      if (by === 'npc') { P.face = L.face || ''; S.act = L.act || null; S.give = !!L.give; }
+      else if (by === 'me') P.face = '';
     }
+    // gestures wait until she is back at the register, so she never bows or reaches out mid-walk
+    if (S.act && arrived()) {
+      P.act(S.act); S.act = null;
+      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order), 900); }   // as her hands come forward
+    }
+    // making the coffee: walk to the machine, work at it for a moment, then turn around and serve you right there
+    if (S.brew === 1 && arrived()) { S.brew = 2; S.t = 0; P.act('offer'); }
+    else if (S.brew === 2 && (S.t += dt) > 2.6) { S.brew = 0; S.served = true; P.goTo(...pickup); talkRelease(); }
+    if (!T && S.line) { S.line = null; P.face = ''; S.act = null; S.brew = 0; S.served = false; walk(home); }
+    P.speaking = !!(T && T.line && (T.line.by || 'npc') === 'npc' &&
+      (!T.done || (voiceAudio && !voiceAudio.paused) || ('speechSynthesis' in window && speechSynthesis.speaking)));
+    // she looks up at you when you're in the café near the counter
+    const d = Math.hypot(player.pos.x - home[0], player.pos.z - home[1]);
+    P.update(dt, T || d < 5 ? camera.position : null);
+    // you stand at the register, and move round to the long counter while she makes your coffee
+    if (T) people3dFrame(P, R.floor + 1.58, ...(S.brew || S.served ? [R.machineX, R.aisleZ + 1.85] : [R.x - 1.3, R.z + .45]), dt);
   });
 }
 //@src 370-loop.js
@@ -5338,6 +5480,6 @@ Promise.race([
     player.pos.set(s.x, 0, s.z); eyeY = s.eye; player.yaw = 2.7; player.pitch = .12;
   }
   document.getElementById('loading').remove();
-  if (params.has('debug')) Object.assign(window, { player, TRAIN, STA, floorAt, blocked });
+  if (params.has('debug')) Object.assign(window, { player, TRAIN, STA, floorAt, blocked, people3d, cafeDoor });
   frame();
 });

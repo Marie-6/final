@@ -108,7 +108,7 @@ function talkShow(line, after) {
   const toks = talkTokens(line.jp), jp = talkQ('.jp');
   let n = 0;
   clearInterval(T.typing);
-  T.line = line; T.after = after; T.done = false;
+  T.line = line; T.after = after; T.done = false; T.hold = !!line.wait;   // wait: the line stays until talkRelease()
   const tick = () => { n++; jp.innerHTML = talkRuby(toks.slice(0, n)); if (n >= toks.length) talkFinish(); };
   jp.innerHTML = '';
   T.finish = () => { n = toks.length; jp.innerHTML = talkRuby(toks); };
@@ -123,8 +123,10 @@ function talkFinish() {
   if (line.introduce) T.known = true, talkMet.add(T.script.who);
   if (line.choices && !T.after) {
     talkQ('.ch').innerHTML = line.choices.map((c, k) => `<button type="button" data-k="${k}"><kbd>${k + 1}</kbd><span>${talkRuby(talkTokens(c.jp))}<small>${talkSub(c)}</small></span></button>`).join('');
-  } else talkQ('.nx').classList.add('in');
+  } else if (!T.hold) talkQ('.nx').classList.add('in');
 }
+// a `wait` line (e.g. the barista making your coffee) moves on by itself when the scene is done
+function talkRelease() { const T = talking; if (!T || !T.hold) return; T.hold = false; talkFinish(); talkNext(); }
 function talkChoose(k) {
   const T = talking, c = T && T.done && T.line.choices && !T.after && T.line.choices[k];
   if (!c) return;
@@ -132,6 +134,7 @@ function talkChoose(k) {
 }
 function talkNext() {
   const T = talking; if (!T) return;
+  if (T.hold) return;                                                       // something is still happening
   if (!T.done) return talkFinish();
   if (T.line.choices && !T.after) return;                                   // waiting for a reply
   if (T.after !== undefined) return talkGo(T.after);
