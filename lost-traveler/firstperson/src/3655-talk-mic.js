@@ -84,7 +84,7 @@ function talkMicListen(retry) {
 // which reply did you say? compare sounds (kana) with each reply, written both with kanji and in its reading
 const TALK_MIC_FIX = [[/下さい/g, 'ください'], [/お?願い/g, 'おねがい'], [/宜しく/g, 'よろしく'], [/初めまして/g, 'はじめまして'],
   [/有難う|有り難う/g, 'ありがとう'], [/済みません/g, 'すみません'], [/分かりません|判りません/g, 'わかりません'], [/左様なら/g, 'さようなら'],
-  [/珈琲/g, 'コーヒー'], [/お水/g, 'おみず'], [/水/g, 'みず'], [/熱い|暑い/g, 'ホット']];
+  [/珈琲/g, 'コーヒー'], [/お水/g, 'おみず'], [/水/g, 'みず'], [/熱い|暑い/g, 'ホット'], [/テイクアウト|テークアウト/g, 'もちかえり'], [/イートイン/g, 'てんない']];
 function talkMicNorm(s) {
   s = String(s).normalize('NFKC');
   for (const [re, to] of TALK_MIC_FIX) s = s.replace(re, to);

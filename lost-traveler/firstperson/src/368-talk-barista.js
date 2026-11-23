@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- talk: the barista at カフェ みなと's register
-// Order a coffee: hot or iced, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
+// Order a coffee: hot or iced, for here or to go, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
 // face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; give: true hands over the cup;
 // brew: true (on a narrator line) sends her to the espresso machine; wait: true holds the line until she is back.
 VERBS.chumon = { r: [['注文', 'ちゅうもん'], ['する', '']], ro: 'chūmon suru', en: 'Order', zh: '点单' };
@@ -20,8 +20,15 @@ const BARISTA_DAY1 = {
         { jp: 'ホットで おねがいします。', ro: 'Hotto de onegaishimasu.', en: 'Hot, please.', zh: '请给我热的。', next: 'hot' },
         { jp: 'アイスで おねがいします。', ro: 'Aisu de onegaishimasu.', en: 'Iced, please.', zh: '请给我冰的。', next: 'ice' },
       ] },
-    { id: 'hot', jp: 'ホットコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Hotto kōhī, sanbyaku en desu.', en: "One hot coffee: that's 300 yen.", zh: '热咖啡，300日元。', order: 'hot', next: 'pay' },
-    { id: 'ice', jp: 'アイスコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Aisu kōhī, sanbyaku en desu.', en: "One iced coffee: that's 300 yen.", zh: '冰咖啡，300日元。', order: 'ice', next: 'pay' },
+    { id: 'hot', jp: 'ホットですね。', ro: 'Hotto desu ne.', en: 'Hot, then.', zh: '热的是吧。', order: 'hot', act: 'nod', next: 'here' },
+    { id: 'ice', jp: 'アイスですね。', ro: 'Aisu desu ne.', en: 'Iced, then.', zh: '冰的是吧。', order: 'ice', act: 'nod', next: 'here' },
+    { id: 'here', jp: '{店内|てんない}で お{召|め}し{上|あ}がりですか？ お{持|も}ち{帰|かえ}りですか？', ro: 'Tennai de omeshiagari desu ka? Omochikaeri desu ka?', en: 'For here, or to go?', zh: '在店里用，还是带走？',
+      choices: [
+        { jp: '{店内|てんない}で おねがいします。', ro: 'Tennai de onegaishimasu.', en: 'For here, please.', zh: '在店里用。', next: 'in' },
+        { jp: '{持|も}ち{帰|かえ}りで おねがいします。', ro: 'Mochikaeri de onegaishimasu.', en: 'To go, please.', zh: '带走。', next: 'out' },
+      ] },
+    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', next: 'pay' },
+    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', next: 'pay' },
     { id: 'pay', by: 'narr', jp: '（{300|さんびゃく}{円|えん}を はらう）', ro: '(sanbyaku en o harau)', en: '(You pay 300 yen.)', zh: '（你付了300日元。）' },
     { jp: 'ちょうど いただきます。{少々|しょうしょう} お{待|ま}ちください。', ro: 'Chōdo itadakimasu. Shōshō omachi kudasai.', en: 'Exact change, thank you. One moment, please.', zh: '正好，收您钱了。请稍等。', act: 'nod' },
     { by: 'narr', jp: '……', ro: '', en: '(She makes your coffee.)', zh: '（她在给你做咖啡。）', brew: true, wait: true },
