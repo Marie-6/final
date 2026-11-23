@@ -23,7 +23,10 @@ try {
   s.onerror = () => {};
   document.head.appendChild(s);
 }
-function pickJaVoice() { jaVoice = speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)) || null; }
+// without an Inworld key: the computer's Japanese voices, a man's for Tanaka and a woman's for the barista when there's one
+const BUILTIN_VOICE = { tanaka: { like: /otoya|hattori|ichiro|keita|male/i, pitch: .9 }, barista: { like: /kyoko|o-ren|nanami|ayumi|haruka|female/i, pitch: 1.15 } };
+let jaVoices = [];
+function pickJaVoice() { jaVoices = speechSynthesis.getVoices().filter(v => /^ja/i.test(v.lang)); jaVoice = jaVoices[0] || null; }
 if ('speechSynthesis' in window) { pickJaVoice(); speechSynthesis.onvoiceschanged = pickJaVoice; }
 
 // Safari only lets audio play after a network wait if that same <audio> element was started inside a click/key press,
@@ -42,11 +45,12 @@ function stopVoice() {
   if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
-function sayBuiltIn(text, rate = 1) {
+function sayBuiltIn(text, rate = 1, who) {
   if (!('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP'; if (jaVoice) u.voice = jaVoice; u.rate = 0.9 * rate;
+    const B = BUILTIN_VOICE[who];
+    u.lang = 'ja-JP'; u.voice = (B && jaVoices.find(v => B.like.test(v.name))) || jaVoice; u.rate = 0.9 * rate; if (B) u.pitch = B.pitch;
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -74,7 +78,7 @@ function speak(text, who, rate = VOICE_RATE[who] || 1) {
   const clean = String(text).replace(/\{([^|}]+)\|[^}]+\}/g, '$1').replace(/[〜~♪]/g, '');
   if (!clean.trim()) return;
   const voiceId = VOICES[who];
-  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate);
+  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who);
   const req = voiceReq;
-  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate); });
+  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who); });
 }

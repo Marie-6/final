@@ -99,6 +99,7 @@ function cafeInterior(B) {
   pastryCase(G, cxa + caseLen / 2, czc, caseLen, glassM, darkWood, chrome);
   // the register sits on the return leg, so customers queue in the open floor in front of it
   const regZ = za + 3.9;
+  cafeDoor.reg = { x: rx, z: regZ, floor: .15, aisleX: cxe + .4, aisleZ: za + 1.12, machineX: fx + 6.0 };   // the barista's spots behind the counter (369-barista-3d.js)
   vintageRegister(G, rx - .05, 1.23, regZ, brass, -Math.PI / 2);
   sign({ lines: [{ t: 'レジ', size: .6, color: '#FFFFFF' }], w: .42, h: .18, bg: '#5B3A2E', fg: '#FFF', frame: false }, rx, 1.95, regZ, -Math.PI / 2, hint.reji);
   cyl(.004, .004, .5, blackM, rx, 2.3, regZ, 4, G, false);
