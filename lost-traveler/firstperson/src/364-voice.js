@@ -45,16 +45,18 @@ function stopVoice() {
   if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
-function sayBuiltIn(text, rate = 1, who) {
-  if (!('speechSynthesis' in window)) return;
+function sayBuiltIn(text, rate = 1, who, onStart) {
+  if (!('speechSynthesis' in window)) return onStart && onStart(null);
   try {
     const u = new SpeechSynthesisUtterance(text);
     const B = BUILTIN_VOICE[who];
     u.lang = 'ja-JP'; u.voice = (B && jaVoices.find(v => B.like.test(v.name))) || jaVoice; u.rate = 0.9 * rate; if (B) u.pitch = B.pitch;
+    // the built-in voice doesn't say how long it will take: about 8 kana a second at normal speed
+    if (onStart) u.onstart = () => onStart(text.length * 125 / u.rate);
     speechSynthesis.speak(u);
-  } catch (e) {}
+  } catch (e) { onStart && onStart(null); }
 }
-async function sayInworld(text, voiceId, req, rate) {
+async function sayInworld(text, voiceId, req, rate, onStart) {
   const key = voiceId + '|' + rate + '|' + text;
   let url = voiceCache.get(key);
   if (!url) {
@@ -70,15 +72,18 @@ async function sayInworld(text, voiceId, req, rate) {
   if (req !== voiceReq) return;   // something else started or stopped speech meanwhile
   voiceAudio = voiceEl; voiceEl.src = url;
   await voiceEl.play();
+  if (onStart && req === voiceReq) onStart(isFinite(voiceEl.duration) ? voiceEl.duration * 1000 : null);
 }
 // text may contain {漢字|かんじ} ruby; who is a VOICES key (unknown → built-in voice)
-function speak(text, who, rate = VOICE_RATE[who] || 1) {
-  if (!voiceOn) return;
+// onStart(ms) is called once, when the voice actually starts (ms = how long it lasts, or null if unknown / no voice),
+// so text on screen can be revealed in step with it
+function speak(text, who, rate = VOICE_RATE[who] || 1, onStart) {
+  if (!voiceOn) return onStart && onStart(null);
   stopVoice();
   const clean = String(text).replace(/\{([^|}]+)\|[^}]+\}/g, '$1').replace(/[〜~♪]/g, '');
-  if (!clean.trim()) return;
+  if (!clean.trim()) return onStart && onStart(null);
   const voiceId = VOICES[who];
-  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who);
+  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who, onStart);
   const req = voiceReq;
-  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who); });
+  sayInworld(clean, voiceId, req, rate, onStart).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who, onStart); });
 }

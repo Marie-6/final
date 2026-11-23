@@ -83,8 +83,8 @@ function startTalk(script) {
 }
 function endTalk() {
   if (!talking) return;
-  clearInterval(talking.typing);
-  stopVoice();
+  clearInterval(talking.typing); clearTimeout(talking.waitVoice);
+  stopVoice(); talkMicStop(); talkMicSay('');   // 3655-talk-mic.js
   talkEl.classList.remove('show'); talkQ('.pt').classList.remove('in');
   talking = null;
   setTimeout(() => { if (!talking) talkEl.classList.remove('on'); }, 350);
@@ -97,6 +97,7 @@ function talkGo(id) {
 }
 function talkShow(line, after) {
   const T = talking, S = T.script, by = line.by || 'npc';
+  talkMicStop();   // 3655-talk-mic.js
   const name = by === 'me' ? (lang === 'en' ? 'あなた' : 'あなた') : by === 'narr' ? '' : T.known ? S.name : '？？？';
   talkQ('.nm').textContent = name;
   const pt = talkQ('.pt');
@@ -109,11 +110,27 @@ function talkShow(line, after) {
   let n = 0;
   clearInterval(T.typing);
   T.line = line; T.after = after; T.done = false; T.hold = !!line.wait;   // wait: the line stays until talkRelease()
-  const tick = () => { n++; jp.innerHTML = talkRuby(toks.slice(0, n)); if (n >= toks.length) talkFinish(); };
   jp.innerHTML = '';
-  T.finish = () => { n = toks.length; jp.innerHTML = talkRuby(toks); };
-  T.typing = setInterval(tick, 38);
-  if (by === 'npc') speak(line.jp, S.who);   // 364-voice.js (your own replies stay silent)
+  T.finish = () => { clearTimeout(T.waitVoice); n = toks.length; jp.innerHTML = talkRuby(toks); };
+  // the text types in step with the voice: each token weighs as much as its reading (漢字 → かんじ = 3),
+  // and the whole line is spread over the length of the spoken clip
+  const w = toks.map(t => /[。、！？!?…]/.test(t.b) ? 3 : (t.r || t.b).length), total = w.reduce((a, b) => a + b, 0) || 1;
+  const startTyping = ms => {
+    if (talking !== T || T.line !== line || T.done || T.typing) return;
+    clearTimeout(T.waitVoice);
+    const span = ms ? ms * .92 : total * 38, t0 = performance.now();
+    T.typing = setInterval(() => {
+      const f = (performance.now() - t0) / span * total;
+      let k = 0, acc = 0; while (k < toks.length && acc + w[k] <= f) acc += w[k++];
+      if (k !== n) { n = k; jp.innerHTML = talkRuby(toks.slice(0, n)); }
+      if (n >= toks.length) talkFinish();
+    }, 30);
+  };
+  T.typing = null;
+  if (by === 'npc') {                                       // 364-voice.js (your own replies stay silent)
+    T.waitVoice = setTimeout(() => startTyping(null), 4000);  // the voice never came: type anyway
+    speak(line.jp, S.who, undefined, startTyping);
+  } else startTyping(null);
 }
 function talkFinish() {
   const T = talking; if (!T || T.done) return;
@@ -123,6 +140,7 @@ function talkFinish() {
   if (line.introduce) T.known = true, talkMet.add(T.script.who);
   if (line.choices && !T.after) {
     talkQ('.ch').innerHTML = line.choices.map((c, k) => `<button type="button" data-k="${k}"><kbd>${k + 1}</kbd><span>${talkRuby(talkTokens(c.jp))}<small>${talkSub(c)}</small></span></button>`).join('');
+    talkMicListen();   // say your reply out loud (3655-talk-mic.js)
   } else if (!T.hold) talkQ('.nx').classList.add('in');
 }
 // a `wait` line (e.g. the barista making your coffee) moves on by itself when the scene is done
@@ -156,6 +174,7 @@ addEventListener('keydown', e => {
   if (k === 'escape') endTalk();
   else if (k === ' ' || k === 'enter' || k === 'e') talkNext();
   else if (k >= '1' && k <= '9') talkChoose(+k - 1);
+  else if (k === 'm') talkMicToggle();   // 3655-talk-mic.js
 }, true);
 // a place in the world where pressing E starts a conversation
 function addTalkSpot(x, z, reach, verb, script, y = 0) {
