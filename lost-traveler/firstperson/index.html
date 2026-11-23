@@ -496,6 +496,27 @@ const hint = {
   nagasu: { ruby: [['流', 'なが'], ['す', '']], ro: 'nagasu', en: 'Flush (the toilet)', zh: '冲水' },
   kirei: { ruby: [['いつもきれいにご', ''], ['利用', 'りよう'], ['ありがとうございます', '']], ro: 'itsumo kirei ni go-riyō arigatō gozaimasu', en: 'Thank you for always keeping it clean', zh: '感谢您一直保持清洁' },
   kohi: { ruby: [['コーヒー', '']], ro: 'kōhī', en: 'Coffee', zh: '咖啡' },
+  // the school
+  tokei: { ruby: [['時計', 'とけい']], ro: 'tokei', en: 'Clock', zh: '钟' },
+  kasa: { ruby: [['傘立', 'かさた'], ['て', '']], ro: 'kasatate', en: 'Umbrella stand', zh: '伞架' },
+  oshirase: { ruby: [['お', ''], ['知', 'し'], ['らせ', '']], ro: 'oshirase', en: 'Notices', zh: '通知' },
+  uwabaki: { ruby: [['上履', 'うわば'], ['きにはきかえてください', '']], ro: 'uwabaki ni hakikaete kudasai', en: 'Please change into indoor shoes', zh: '请换上室内鞋' },
+  getabako: { ruby: [['下駄箱', 'げたばこ']], ro: 'getabako', en: 'Shoe lockers', zh: '鞋柜' },
+  dosoku: { ruby: [['土足禁止', 'どそくきんし']], ro: 'dosoku kinshi', en: 'No outdoor shoes past this point', zh: '禁止穿鞋入内' },
+  uketsuke: { ruby: [['受付', 'うけつけ']], ro: 'uketsuke', en: 'Reception', zh: '接待处' },
+  yokoso: { ruby: [['ようこそ', '']], ro: 'yōkoso', en: 'Welcome', zh: '欢迎' },
+  shokuin: { ruby: [['職員室', 'しょくいんしつ']], ro: 'shokuin-shitsu', en: "Teachers' room", zh: '教师办公室' },
+  tachiiri: { ruby: [['立入禁止', 'たちいりきんし']], ro: 'tachiiri kinshi', en: 'No entry', zh: '禁止入内' },
+  rouka: { ruby: [['廊下', 'ろうか'], ['は', ''], ['走', 'はし'], ['らない', '']], ro: 'rōka wa hashiranai', en: 'No running in the hallway', zh: '走廊里不要奔跑' },
+  speech: { ruby: [['スピーチ', ''], ['大会', 'たいかい']], ro: 'supīchi taikai', en: 'Speech contest', zh: '演讲比赛' },
+  shokaki: { ruby: [['消火器', 'しょうかき']], ro: 'shōkaki', en: 'Fire extinguisher', zh: '灭火器' },
+  hijo: { ruby: [['非常口', 'ひじょうぐち']], ro: 'hijōguchi', en: 'Emergency exit', zh: '紧急出口' },
+  shokyu: { ruby: [['初級', 'しょきゅう'], ['クラス', '']], ro: 'shokyū kurasu', en: 'Beginner class', zh: '初级班' },
+  kudasai: { ruby: [['〜を', ''], ['ください', '']], ro: '~ o kudasai', en: '~, please (when asking for something)', zh: '请给我～' },
+  sakura: { ruby: [['さくら', '']], ro: 'sakura', en: "Cherry blossom: today's three letters, さ・く・ら", zh: '樱花：今天学的三个字 さ・く・ら' },
+  hiragana: { ruby: [['ひらがな', '']], ro: 'hiragana', en: 'The hiragana chart', zh: '平假名表' },
+  jikanwari: { ruby: [['時間割', 'じかんわり']], ro: 'jikanwari', en: 'Class timetable', zh: '课程表' },
+  mokuhyo: { ruby: [['毎日', 'まいにち'], ['すこしずつ', '']], ro: 'mainichi sukoshi zutsu', en: 'A little every day (the class motto)', zh: '每天一点点（班级口号）' },
 };
 
 // ================================================================ buildings
@@ -1636,6 +1657,655 @@ function wafuFront(B, norenText, info) {
   if (claim(s0, 'wall', az - .45, az + .45)) { const ac = group(B.out(.3), .15, az, ry); box(.8, .6, .3, std('#EEEDE8'), 0, .3, 0, ac); const fan = cyl(.22, .22, .02, std('#3A3D44'), -.12, .3, .16, 18, ac, false); fan.rotation.x = Math.PI / 2; plantPot(0, 0, 0, .8).position.set(B.out(.3), .75, az); }
 }
 
+// ================================================================ the language school (walk-in)
+// みなと日本語学校. From the street: a brick wall with gate posts and lamps, a paved front yard with two
+// lawns, sakura trees and benches, then a three-story building. The ground floor is walk-in:
+//   昇降口 (the entrance, where you change shoes) in the middle, the 初級クラス classroom to its right,
+//   職員室 (teachers' room, closed for now) and the stairs to its left, and the 廊下 (hallway) along the back.
+// x runs from the street wall (-6) to the back wall (-28); z from 4 to 26, between くらや and the bookshop.
+const SCH = { z0: 4.2, z1: 25.8, fx: -15, part: -24.5, back: -27.75, FL: .36, H: 3.3, step: -22 };
+const slideDoors = [];      // classroom doors you can open and close: panel group, track x, doorway z range
+const schoolLights = [];
+// inside the building the floor is one step up (FL), except the low part of the entrance where you take your shoes off
+function schoolFloor(x, z) {
+  return x < SCH.fx - .1 && z > SCH.z0 && z < SCH.z1 && !(x > SCH.step && z > 12.5 && z < 17.5);
+}
+// where you are, for the badge in the corner
+function areaAt(x, z) {
+  if (cafeDoor.z && x > cafeDoor.x + .2) return restroom.door && x > restroom.x + .1 ? 'wc' : 'cafe';
+  if (z > 4 && z < 26 && x < -6.3) {
+    if (x > SCH.fx) return 'yard';
+    if (x > SCH.part && z > 17.5) return 'classroom';
+    if (x > SCH.part && z > 12.5 && z < 17.5) return 'genkan';
+    return 'rouka';
+  }
+  return '';
+}
+const AREA_BADGE = {
+  '': '日本語学校の通り<small>First-person street test</small>',
+  wc: 'お手洗い<small>Restroom · おてあらい</small>',
+  cafe: 'カフェ<small>Café · tap the menus to read them</small>',
+  yard: 'みなと日本語学校<small>School front yard · tap the signs</small>',
+  genkan: '昇降口<small>Entrance · shōkōguchi · change into indoor shoes</small>',
+  rouka: '廊下<small>Hallway · rōka</small>',
+  classroom: '教室<small>Classroom · kyōshitsu · sit at a desk</small>',
+};
+// every glyph the school draws on canvas, so the web fonts are loaded before the textures are painted
+const SCHOOL_GLYPHS = 'みなと日本語学校受付上履きにはきかえてください土足禁止下駄箱ようこそ初級クラス職員室非常口消火器立入禁止廊下は走らないスピーチ大会お知らせ〜をコーヒー水ホットでアイス店内持ち帰りさんびゃく円ですら日直リン月火水木金時間割毎すこしずつ０１２３４５６７８９ひがなあいうえおかけしせそたちつてとぬねのふへほまみむめもやゆよりるれろわん図書室遠足保健漢字テスト生徒募集中？！：／（）、。・';
+
+// ---------------------------------------------------------------- school textures
+let _schoolTex;
+function schoolTex() {
+  if (_schoolTex) return _schoolTex;
+  const T = {};
+  const rep = t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+  // a line of text with furigana over the kanji, like a teacher writes for beginners
+  const ruby = (g, segs, x, y, size, color, align = 'left', font = '"Klee One"', weight = 600) => {
+    g.font = `${weight} ${size}px ${font}`;
+    const ws = segs.map(([t]) => g.measureText(t).width), total = ws.reduce((a, b) => a + b, 0);
+    let cx = align === 'center' ? x - total / 2 : x;
+    g.textBaseline = 'alphabetic'; g.fillStyle = color;
+    segs.forEach(([t, r], i) => {
+      g.font = `${weight} ${size}px ${font}`; g.textAlign = 'left'; g.fillText(t, cx, y);
+      if (r) { g.font = `${weight} ${size * .36}px ${font}`; g.textAlign = 'center'; g.fillText(r, cx + ws[i] / 2, y - size * .9); }
+      cx += ws[i];
+    });
+  };
+  T.ruby = ruby;
+
+  // front yard: small pavers in soft brick colors (one tile = 2 m)
+  T.paving = rep(canvasTex(512, 512, (g, W) => {
+    g.fillStyle = '#A99A8C'; g.fillRect(0, 0, W, W);
+    const cols = ['#D9BBA8', '#E6D3C1', '#CDB3A1', '#DCC8B8', '#C9A08F', '#E8D9CB', '#BFA594'];
+    for (let r = 0; r < 16; r++) for (let c = 0; c < 9; c++) { const x = c * 64 - (r % 2) * 32; g.fillStyle = pick(cols); g.fillRect(x + 2, r * 32 + 2, 60, 28); g.fillRect(x + 2 + W, r * 32 + 2, 60, 28); }
+    speckle(g, W, W, .05, 3000);
+  }));
+  T.lawn = rep(canvasTex(256, 256, (g, W) => {
+    g.fillStyle = '#6FA04E'; g.fillRect(0, 0, W, W);
+    for (let i = 0; i < 2600; i++) { g.strokeStyle = pick(['#5E9142', '#7DB05A', '#8BBE63', '#557F3C', '#A6CF7A']); g.lineWidth = 1.2; const x = rand() * W, y = rand() * W; g.beginPath(); g.moveTo(x, y); g.lineTo(x + range(-2, 2), y - range(3, 7)); g.stroke(); }
+  }));
+  // entrance floor: grey terrazzo tiles (30 cm)
+  T.terrazzo = rep(canvasTex(256, 256, (g, W) => {
+    g.fillStyle = '#8F9496'; g.fillRect(0, 0, W, W);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = shade('#C4C7C5', .94 + rand() * .1); g.fillRect(i * 64 + 1.5, j * 64 + 1.5, 61, 61); }
+    for (let i = 0; i < 2500; i++) { g.fillStyle = pick(['rgba(70,70,75,.35)', 'rgba(255,255,255,.4)', 'rgba(150,120,100,.3)']); g.fillRect(rand() * W, rand() * W, 1.5, 1.5); }
+  }));
+  // hallway and stairs: polished teal-green sheet floor, a little mottled, a seam every 2 m
+  T.lino = rep(canvasTex(256, 256, (g, W) => {
+    g.fillStyle = '#3F9E97'; g.fillRect(0, 0, W, W);
+    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${rand() < .5 ? '255,255,255' : '20,60,60'},${.03 + rand() * .05})`; g.beginPath(); g.ellipse(rand() * W, rand() * W, range(2, 8), range(1, 4), rand() * 3, 0, 7); g.fill(); }
+    g.fillStyle = 'rgba(20,60,60,.25)'; g.fillRect(0, 0, W, 1.5);
+  }));
+  // classroom floor: wooden parquet squares, alternating direction (one tile = 1.2 m, 30 cm squares)
+  T.parquet = rep(canvasTex(512, 512, (g, W) => {
+    const n = 4, s = W / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const horiz = (i + j) % 2 === 0;
+      for (let k = 0; k < 4; k++) {
+        const a = k * s / 4;
+        g.fillStyle = shade(pick(['#8A5434', '#7A4A2E', '#94603C', '#6F4328']), .92 + rand() * .14);
+        horiz ? g.fillRect(i * s, j * s + a, s, s / 4) : g.fillRect(i * s + a, j * s, s / 4, s);
+        g.strokeStyle = 'rgba(40,20,10,.12)'; g.lineWidth = 1;
+        for (let q = 0; q < 4; q++) { const o = range(2, s / 4 - 2); g.beginPath(); if (horiz) { g.moveTo(i * s, j * s + a + o); g.lineTo(i * s + s, j * s + a + o + range(-2, 2)); } else { g.moveTo(i * s + a + o, j * s); g.lineTo(i * s + a + o + range(-2, 2), j * s + s); } g.stroke(); }
+        g.fillStyle = 'rgba(0,0,0,.28)'; horiz ? g.fillRect(i * s, j * s + a, s, 1.5) : g.fillRect(i * s + a, j * s, 1.5, s);
+      }
+    }
+  }));
+  // ceiling: 60 cm acoustic tiles with little holes (one tile = 1.2 m)
+  T.ceiling = rep(canvasTex(256, 256, (g, W) => {
+    g.fillStyle = '#C9C4BA'; g.fillRect(0, 0, W, W);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = '#EEEBE3'; g.fillRect(i * 128 + 1.5, j * 128 + 1.5, 125, 125); }
+    for (let i = 0; i < 1400; i++) { g.fillStyle = 'rgba(120,110,100,.35)'; g.fillRect(rand() * W, rand() * W, 1.2, 1.2); }
+  }));
+  // classroom sliding door: wood, a patterned frosted window, a louvered vent at the bottom, a finger pull
+  T.door = canvasTex(200, 420, (g, W, H) => {
+    g.fillStyle = '#A86F42'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(70,40,20,${.06 + rand() * .08})`; g.lineWidth = 1 + rand() * 2; const x = rand() * W; g.beginPath(); g.moveTo(x, 0); g.bezierCurveTo(x + range(-6, 6), H / 3, x + range(-6, 6), H * 2 / 3, x + range(-4, 4), H); g.stroke(); }
+    g.strokeStyle = 'rgba(60,35,20,.5)'; g.lineWidth = 6; g.strokeRect(3, 3, W - 6, H - 6);
+    g.fillStyle = '#E8E2D6'; g.fillRect(28, 30, W - 56, 150);
+    const gl = g.createLinearGradient(0, 36, 0, 174); gl.addColorStop(0, '#C9DCE4'); gl.addColorStop(1, '#9FB8C4'); g.fillStyle = gl; g.fillRect(36, 38, W - 72, 134);
+    g.save(); g.beginPath(); g.rect(36, 38, W - 72, 134); g.clip();
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1;
+    for (let i = -140; i < 160; i += 7) { g.beginPath(); g.moveTo(36 + i, 38); g.lineTo(36 + i + 134, 172); g.stroke(); g.beginPath(); g.moveTo(W - 36 - i, 38); g.lineTo(W - 36 - i - 134, 172); g.stroke(); }
+    g.restore();
+    g.fillStyle = '#C9C6BE'; g.fillRect(30, H - 92, W - 60, 56); g.fillStyle = '#8E8A82'; for (let y = H - 88; y < H - 40; y += 7) g.fillRect(34, y, W - 68, 3);
+    g.fillStyle = '#5A3A22'; g.fillRect(W - 28, 200, 12, 54); g.fillStyle = '#C9CDD2'; g.fillRect(W - 26, 202, 8, 50);
+  });
+  // shoe lockers (下駄箱): one tile = 1 m wide, 3 cubbies across, 6 high, white indoor shoes or street shoes, name labels
+  T.getabako = rep(canvasTex(256, 474, (g, W, H) => {
+    g.fillStyle = '#B9874F'; g.fillRect(0, 0, W, H);
+    const cw = W / 3, rh = H / 6;
+    for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) {
+      const x = c * cw + 5, y = r * rh + 5, w = cw - 10, h = rh - 18;
+      g.fillStyle = '#3A2A1E'; g.fillRect(x, y, w, h);
+      const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(0,0,0,.45)'); gr.addColorStop(1, 'rgba(255,255,255,.06)'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+      if (rand() < .78) {
+        const indoor = rand() < .6, col = indoor ? '#F4F2EC' : pick(['#2E3550', '#D8433F', '#F4F2EC', '#5F7D9C', '#3A3A40', '#E9C46A']);
+        for (const sx of [.3, .7]) {
+          const cx = x + w * sx, by = y + h - 3, sw = w * .17;
+          g.fillStyle = col; g.beginPath(); g.ellipse(cx, by - 9, sw, 13, 0, Math.PI, 0); g.fill(); g.fillRect(cx - sw, by - 9, sw * 2, 8);
+          g.fillStyle = indoor ? pick(['#2F6FB8', '#D8433F', '#3C9D5D']) : '#EDEBE6'; g.fillRect(cx - sw, by - 4, sw * 2, 4);
+        }
+      }
+      g.fillStyle = '#F4EFE2'; g.fillRect(x + w * .22, y + h + 4, w * .56, 9);
+      g.fillStyle = 'rgba(40,40,60,.6)'; g.fillRect(x + w * .28, y + h + 7, w * .44 * (.4 + rand() * .6), 3);
+    }
+  }));
+  // classroom cubbies at the back: one tile = 1 m, 4 across, 3 high, bags and books
+  T.cubby = rep(canvasTex(256, 256, (g, W, H) => {
+    g.fillStyle = '#EDEAE3'; g.fillRect(0, 0, W, H);
+    const cw = W / 4, rh = H / 3;
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      const x = c * cw + 4, y = r * rh + 4, w = cw - 8, h = rh - 8;
+      g.fillStyle = '#8F8B84'; g.fillRect(x, y, w, h);
+      const t = rand();
+      if (t < .4) { g.fillStyle = pick(['#2E3550', '#3A3A40', '#6B4A32', '#C0392B', '#5F7D9C']); g.beginPath(); g.roundRect(x + 4, y + h * .25, w - 8, h * .75, 6); g.fill(); g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(x + 8, y + h * .45, w - 16, 3); }
+      else if (t < .8) { let bx = x + 3; while (bx < x + w - 8) { const bw = range(5, 10), top = h * range(.15, .4); g.fillStyle = pick(['#D8433F', '#2F6FB8', '#F2C230', '#3C9D5D', '#F4F2EC', '#E28FA8', '#7A5A3A']); g.fillRect(bx, y + top, bw, h - top); bx += bw + 1; } }
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x, y, w, 5);
+    }
+  }));
+  T.curtain = canvasTex(128, 256, (g, W, H) => { for (let x = 0; x < W; x++) { const v = .8 + .2 * Math.sin(x / W * Math.PI * 6) ** 2; g.fillStyle = shade('#EADFC6', v); g.fillRect(x, 0, 1, H); } g.fillStyle = 'rgba(120,100,70,.15)'; g.fillRect(0, H - 8, W, 8); });
+  T.blinds = rep(canvasTex(64, 64, (g, W, H) => { for (let y = 0; y < H; y += 8) { g.fillStyle = '#E6E4DE'; g.fillRect(0, y, W, 6); g.fillStyle = '#B9B6AE'; g.fillRect(0, y + 6, W, 2); } }));
+  // a green felt notice board with a few papers pinned on its left part
+  T.felt = (w, h, titles, upTo = 1) => canvasTex(w * 160, h * 160, (g, W, H) => {
+    g.fillStyle = '#3E7A57'; g.fillRect(0, 0, W, H); speckle(g, W, H, .05, W * H / 60);
+    let x = 14;
+    for (const t of titles) {
+      const pw = range(80, 110), ph = Math.min(pw * 1.35, H - 20), y = range(8, Math.max(10, H - ph - 8));
+      if (x + pw > W * upTo - 8) break;
+      g.save(); g.translate(x + pw / 2, y + ph / 2); g.rotate(range(-.03, .03));
+      g.fillStyle = pick(['#FFFFFF', '#FFF6E0', '#FCE4EC', '#E3F0FB', '#FFF9C4']); g.fillRect(-pw / 2, -ph / 2, pw, ph);
+      g.fillStyle = pick(['#D8433F', '#2F6FB8', '#3C9D5D', '#E8A33A', '#8E5BB5']); g.fillRect(-pw / 2, -ph / 2, pw, ph * .2);
+      g.fillStyle = '#FFFFFF'; g.font = `900 ${pw * .16}px "Zen Maru Gothic"`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 0, -ph / 2 + ph * .1, pw * .9);
+      g.fillStyle = 'rgba(40,40,60,.35)'; for (let k = 0; k < 6; k++) g.fillRect(-pw * .38, -ph * .2 + k * ph * .1, pw * range(.5, .76), 3);
+      g.fillStyle = '#D8433F'; g.beginPath(); g.arc(0, -ph / 2 + 5, 4, 0, 7); g.fill();
+      g.restore();
+      x += pw + range(14, 26);
+    }
+  });
+  // the blackboard: three panels of today's lesson (Day 1), written in chalk with furigana
+  const chalk = draw => canvasTex(525, 300, (g, W, H) => {
+    g.fillStyle = '#2E5A46'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(255,255,255,${.015 + rand() * .03})`; g.beginPath(); g.ellipse(rand() * W, rand() * H, range(30, 110), range(10, 30), range(-.3, .3), 0, 7); g.fill(); }
+    speckle(g, W, H, .04, 1500);
+    g.shadowColor = 'rgba(255,255,255,.35)'; g.shadowBlur = 2;
+    draw(g, W, H);
+    g.shadowBlur = 0;
+    for (let i = 0; i < 2500; i++) { g.fillStyle = 'rgba(46,90,70,.35)'; g.fillRect(rand() * W, rand() * H, 1.5, 1.5); }
+  });
+  const CW = '#F4F1E8', CY = '#F6E27A', CP = '#F7B3C6', CB = '#A9D4F2';
+  T.boardL = chalk((g, W) => {
+    ruby(g, [['11', ''], ['月', 'がつ'], ['20日', 'はつか'], ['（', ''], ['金', 'きん'], ['）', '']], 24, 48, 26, CW);
+    ruby(g, [['〜を ください', '']], W / 2, 142, 58, CY, 'center');
+    g.strokeStyle = CY; g.lineWidth = 3; g.beginPath(); g.moveTo(92, 158); g.lineTo(W - 92, 154); g.stroke();
+    ruby(g, [['コーヒーを ください。', '']], 44, 216, 32, CW);
+    ruby(g, [['お', ''], ['水', 'みず'], ['を ください。', '']], 44, 272, 32, CW);
+  });
+  T.boardC = chalk((g, W) => {
+    ruby(g, [['ホットで？', '']], 46, 74, 40, CP);
+    ruby(g, [['アイスで？', '']], 286, 74, 40, CB);
+    ruby(g, [['店内', 'てんない'], ['で ／ ', ''], ['持', 'も'], ['ち', ''], ['帰', 'かえ'], ['りで', '']], W / 2, 150, 38, CW, 'center');
+    ruby(g, [['さんびゃく', ''], ['円', 'えん'], ['です。', '']], W / 2, 222, 38, CY, 'center');
+  });
+  T.boardR = chalk((g, W) => {
+    ruby(g, [['日直', 'にっちょく'], ['：リン', '']], W - 178, 48, 24, CW);
+    ruby(g, [['さ　く　ら', '']], 28, 178, 80, CP);
+    g.strokeStyle = CP; g.lineWidth = 3;
+    const px = 470, py = 150;
+    for (let k = 0; k < 5; k++) { const a = k * Math.PI * 2 / 5 - Math.PI / 2; g.beginPath(); g.ellipse(px + Math.cos(a) * 22, py + Math.sin(a) * 22, 12, 19, a + Math.PI / 2, 0, 7); g.stroke(); }
+    g.beginPath(); g.arc(px, py, 5, 0, 7); g.stroke();
+    ruby(g, [['３つの ひらがな', '']], 32, 262, 28, CW);
+  });
+  // あいうえお chart, read right to left in columns; today's さ・く・ら are pink
+  const KANA = ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの', 'はひふへほ', 'まみむめも', 'や　ゆ　よ', 'らりるれろ', 'わ　　　を', 'ん　　　　'];
+  T.kana = canvasTex(640, 420, (g, W, H) => {
+    g.fillStyle = '#FFFDF6'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#F4A9BE'; g.fillRect(0, 0, W, 56);
+    g.fillStyle = '#FFFFFF'; g.font = '900 40px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ひらがな', W / 2, 30);
+    const cw = (W - 20) / 11, rh = (H - 76) / 5;
+    KANA.forEach((col, c) => [...col].forEach((ch, r) => {
+      if (ch === '　') return;
+      const x = W - 10 - (c + 1) * cw, y = 66 + r * rh, hl = 'さくら'.includes(ch);
+      g.fillStyle = hl ? '#FDE3EA' : (c + r) % 2 ? '#F6F1E4' : '#FFFFFF'; g.fillRect(x + 2, y + 2, cw - 4, rh - 4);
+      g.fillStyle = hl ? '#C0466A' : '#2A2230'; g.font = `700 ${rh * .62}px "Zen Maru Gothic"`; g.fillText(ch, x + cw / 2, y + rh / 2 + 2);
+    }));
+  });
+  // class timetable: subjects in hiragana, days with their readings
+  T.jikanwari = canvasTex(360, 290, (g, W, H) => {
+    g.fillStyle = '#FFFDF6'; g.fillRect(0, 0, W, H);
+    ruby(g, [['時間割', 'じかんわり']], W / 2, 50, 30, '#1D2B4A', 'center', '"Zen Maru Gothic"', 900);
+    const days = [['月', 'げつ'], ['火', 'か'], ['水', 'すい'], ['木', 'もく'], ['金', 'きん']], subj = ['かいわ', 'もじ', 'ぶんぽう', 'きく', 'よむ'];
+    const x0 = 40, cw = (W - 50) / 5, y0 = 70, rh = 48;
+    g.strokeStyle = '#B9B3A5'; g.lineWidth = 2;
+    for (let i = 0; i <= 5; i++) { g.beginPath(); g.moveTo(x0 + i * cw, y0); g.lineTo(x0 + i * cw, y0 + rh * 4.5); g.stroke(); }
+    for (let r = 0; r <= 4; r++) { g.beginPath(); g.moveTo(10, y0 + rh * .5 + r * rh); g.lineTo(W - 10, y0 + rh * .5 + r * rh); g.stroke(); }
+    days.forEach((d, i) => ruby(g, [d], x0 + cw * (i + .5), y0 + 20, 20, '#1D2B4A', 'center', '"Zen Maru Gothic"', 900));
+    for (let r = 0; r < 4; r++) {
+      g.fillStyle = '#8A8478'; g.font = '700 18px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(r + 1), 25, y0 + rh * (r + 1));
+      for (let c = 0; c < 5; c++) { g.fillStyle = ['#2F6FB8', '#C0466A', '#3C9D5D', '#E8A33A', '#8E5BB5'][(r + c * 2) % 5]; g.font = '700 17px "Zen Maru Gothic"'; g.fillText(subj[(r + c * 2) % 5], x0 + cw * (c + .5), y0 + rh * (r + 1)); }
+    }
+  });
+  // posters for the hallway board
+  T.rouka = canvasTex(300, 400, (g, W, H) => {
+    g.fillStyle = '#FFF4B8'; g.fillRect(0, 0, W, H); g.strokeStyle = '#E8A33A'; g.lineWidth = 10; g.strokeRect(5, 5, W - 10, H - 10);
+    ruby(g, [['廊下', 'ろうか'], ['は', '']], W / 2, 92, 54, '#C0392B', 'center', '"Zen Maru Gothic"', 900);
+    ruby(g, [['走', 'はし'], ['らない', '']], W / 2, 178, 54, '#C0392B', 'center', '"Zen Maru Gothic"', 900);
+    // a running figure in a red "no" circle
+    const cx = W / 2, cy = 290;
+    g.strokeStyle = '#1D2B4A'; g.lineWidth = 9; g.lineCap = 'round';
+    g.beginPath(); g.arc(cx + 6, cy - 52, 13, 0, 7); g.fillStyle = '#1D2B4A'; g.fill();
+    g.beginPath(); g.moveTo(cx, cy - 36); g.lineTo(cx - 8, cy + 10); g.moveTo(cx - 8, cy + 10); g.lineTo(cx + 18, cy + 34); g.moveTo(cx - 8, cy + 10); g.lineTo(cx - 30, cy + 40); g.moveTo(cx - 2, cy - 26); g.lineTo(cx + 26, cy - 8); g.moveTo(cx - 2, cy - 26); g.lineTo(cx - 28, cy - 14); g.stroke();
+    g.strokeStyle = '#D8433F'; g.lineWidth = 10; g.beginPath(); g.arc(cx, cy, 68, 0, 7); g.stroke(); g.beginPath(); g.moveTo(cx - 48, cy - 48); g.lineTo(cx + 48, cy + 48); g.stroke();
+  });
+  T.speech = canvasTex(300, 400, (g, W, H) => {
+    g.fillStyle = '#F3F8FD'; g.fillRect(0, 0, W, H); g.fillStyle = '#2F6FB8'; g.fillRect(0, 0, W, 130);
+    ruby(g, [['スピーチ', '']], W / 2, 64, 44, '#FFFFFF', 'center', '"Zen Maru Gothic"', 900);
+    ruby(g, [['大会', 'たいかい']], W / 2, 118, 40, '#FFE08A', 'center', '"Zen Maru Gothic"', 900);
+    ruby(g, [['12', ''], ['月', 'がつ'], ['10日', 'とおか'], ['（', ''], ['水', 'すい'], ['）', '']], W / 2, 196, 28, '#1D2B4A', 'center', '"Zen Maru Gothic"', 700);
+    // microphone
+    const cx = W / 2, cy = 290;
+    g.fillStyle = '#5A6070'; g.beginPath(); g.roundRect(cx - 22, cy - 60, 44, 74, 22); g.fill();
+    g.strokeStyle = '#5A6070'; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy - 4, 36, 0, Math.PI); g.stroke(); g.beginPath(); g.moveTo(cx, cy + 32); g.lineTo(cx, cy + 62); g.moveTo(cx - 26, cy + 64); g.lineTo(cx + 26, cy + 64); g.stroke();
+    g.fillStyle = '#F4A9BE'; for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(40 + i * 44, H - 22, 6, 0, 7); g.fill(); }
+  });
+  // emergency exit: a running figure toward a door, white on green
+  T.hijo = canvasTex(360, 128, (g, W, H) => {
+    g.fillStyle = '#17985A'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#FFFFFF'; g.fillRect(14, 14, 74, 100); g.fillStyle = '#17985A'; g.fillRect(24, 22, 54, 92);
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(122, 32, 11, 0, 7); g.fill();
+    g.strokeStyle = '#FFFFFF'; g.lineWidth = 10; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(116, 48); g.lineTo(106, 82); g.lineTo(126, 110); g.moveTo(106, 82); g.lineTo(86, 104); g.moveTo(114, 56); g.lineTo(136, 72); g.moveTo(114, 56); g.lineTo(94, 64); g.stroke();
+    g.font = '900 58px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('非常口', 258, 68);
+  });
+  // a plain school clock at half past one
+  T.clock = canvasTex(256, 256, (g, W) => {
+    g.clearRect(0, 0, W, W); g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(128, 128, 124, 0, 7); g.fill();
+    g.strokeStyle = '#2A2E36'; g.lineWidth = 10; g.stroke(); g.fillStyle = '#2A2E36';
+    for (let i = 0; i < 60; i++) { const big = i % 5 === 0; g.save(); g.translate(128, 128); g.rotate(i * Math.PI / 30); g.fillRect(big ? -4 : -1.5, -116, big ? 8 : 3, big ? 20 : 8); g.restore(); }
+    g.font = '700 30px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let h = 1; h <= 12; h++) { const a = h * Math.PI / 6; g.fillText(String(h), 128 + Math.sin(a) * 78, 130 - Math.cos(a) * 78); }
+    const hand = (a, len, w, c) => { g.save(); g.translate(128, 128); g.rotate(a); g.fillStyle = c; g.fillRect(-w / 2, -len, w, len + 14); g.restore(); };
+    hand(1.5 * Math.PI / 6, 58, 9, '#2A2E36'); hand(Math.PI, 92, 6, '#2A2E36'); hand(Math.PI * .7, 100, 2, '#D8433F');
+    g.beginPath(); g.arc(128, 128, 7, 0, 7); g.fill();
+  });
+  return _schoolTex = T;
+}
+
+// build something and throw it away again, keeping only its effect on the random numbers and texture caches
+function ghostBuild(fn) {
+  const n = scene.children.length, t = tappables.length, d = doorways.length, p = noPole.length;
+  const L = Object.fromEntries(Object.entries(lanes).map(([k, v]) => [k, v.length]));
+  fn();
+  for (const o of scene.children.slice(n)) scene.remove(o);
+  tappables.length = t; doorways.length = d; noPole.length = p; for (const k in L) lanes[k].length = L[k];
+}
+// build without changing the street's random numbers or the shared window and door textures
+function isolated(fn) {
+  const s = seed, copy = c => Object.fromEntries(Object.entries(c).map(([k, a]) => [k, a.slice()]));
+  const w = copy(winCache), dc = copy(doorCache);
+  fn();
+  seed = s;
+  for (const [c, saved] of [[winCache, w], [doorCache, dc]]) for (const k of Object.keys(c)) if (saved[k]) c[k] = saved[k]; else delete c[k];
+}
+
+// ---------------------------------------------------------------- build the school
+function buildSchool() {
+  const T = schoolTex();
+  const { z0, z1, fx, part, back, FL, H } = SCH;
+  const G = new THREE.Group(); scene.add(G);
+  const rep = (t, rx, ry) => { const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); return c; };
+  const M = (m, w, h) => typeof m === 'function' ? m(w, h) : m;
+  // a floor (or ceiling) plane over x from xa to xb and z from za to zb, the texture repeating every `tile` meters
+  const floor = (tex, xa, xb, za, zb, y, tile, extra = {}, down = false) => {
+    const m = mesh(new THREE.PlaneGeometry(xb - xa, zb - za), std('#ffffff', { map: rep(tex, (xb - xa) / tile, (zb - za) / tile), ...extra }), (xa + xb) / 2, y, (za + zb) / 2, G, false);
+    m.rotation.x = down ? Math.PI / 2 : -Math.PI / 2; m.userData.noCollide = true; return m;
+  };
+  // walls with holes for doors and windows. holes: [from, to, bottom, top]. mPos/mNeg: the faces toward +x/-x (or +z/-z)
+  const wallZ = (x, za, zb, holes, mPos, mNeg, t = .2, y0 = 0, y1 = H) => {
+    const pc = (a, b, ya, yb) => { if (b - a < .01 || yb - ya < .01) return; const side = M(mNeg, b - a, yb - ya); box(t, yb - ya, b - a, [M(mPos, b - a, yb - ya), side, side, side, side, side], x, (ya + yb) / 2, (a + b) / 2, G); };
+    let a = za;
+    for (const [ha, hb, hy0, hy1] of holes.slice().sort((p, q) => p[0] - q[0])) { pc(a, ha, y0, y1); pc(ha, hb, y0, hy0); pc(ha, hb, hy1, y1); a = hb; }
+    pc(a, zb, y0, y1);
+  };
+  const wallX = (z, xa, xb, holes, mPos, mNeg, t = .2, y0 = 0, y1 = H) => {
+    const pc = (a, b, ya, yb) => { if (b - a < .01 || yb - ya < .01) return; const side = M(mNeg, b - a, yb - ya); box(b - a, yb - ya, t, [side, side, side, side, M(mPos, b - a, yb - ya), side], (a + b) / 2, (ya + yb) / 2, z, G); };
+    let a = xa;
+    for (const [ha, hb, hy0, hy1] of holes.slice().sort((p, q) => p[0] - q[0])) { pc(a, ha, y0, y1); pc(ha, hb, y0, hy0); pc(ha, hb, hy1, y1); a = hb; }
+    pc(a, xb, y0, y1);
+  };
+  const outside = (w, h) => wallMat('tile', '#F1ECE3', w, h);
+  const plaster = std('#EFE9DC', { roughness: .92 }), plasterLow = std('#E4DCCB', { roughness: .9 });
+  const wood = std('#B07A4A', { roughness: .6 }), darkWood = std('#7A4E2E', { roughness: .6 });
+  const alu = std('#B8BDC3', { roughness: .4, metalness: .5 });
+  const glassM = new THREE.MeshStandardMaterial({ color: '#DDEBF2', transparent: true, opacity: .14, roughness: .05, depthWrite: false });
+  const steel = std('#8E959C', { roughness: .45, metalness: .5 });
+
+  // an aluminum sliding window filling a hole in a wall that runs along z
+  const windowZ = (x, za, zb, ya, yb, panes = 2) => {
+    const w = zb - za;
+    for (const zz of [za + .03, zb - .03]) box(.12, yb - ya, .06, alu, x, (ya + yb) / 2, zz, G, false);
+    for (const yy of [ya + .03, yb - .03]) box(.12, .06, w, alu, x, yy, (za + zb) / 2, G, false);
+    for (let i = 0; i < panes; i++) {
+      const a = za + w * i / panes, b = za + w * (i + 1) / panes, off = i % 2 ? .025 : -.025;
+      box(.02, yb - ya - .08, b - a + .02, glassM, x + off, (ya + yb) / 2, (a + b) / 2, G, false);
+      for (const zz of [a + .025, b - .025]) box(.04, yb - ya - .06, .04, alu, x + off, (ya + yb) / 2, zz, G, false);
+      for (const yy of [ya + .06, yb - .06]) box(.04, .04, b - a, alu, x + off, yy, (a + b) / 2, G, false);
+    }
+    box(.3, .035, w + .06, alu, x, ya - .005, (za + zb) / 2, G, false);
+  };
+  // a ceiling light: a white box with a glowing diffuser
+  const fluo = glowMat(null, null, 1.1, 1.7, { color: '#F6F9FF', emissive: 0xf2f6ff });
+  const lamp = (x, z, alongX) => {
+    box(alongX ? 1.3 : .24, .05, alongX ? .24 : 1.3, std('#E9E9E6'), x, H - .03, z, G, false);
+    box(alongX ? 1.2 : .14, .03, alongX ? .14 : 1.2, fluo, x, H - .065, z, G, false);
+  };
+  const light = (x, z, i = 1) => { const l = new THREE.PointLight(0xf4f6ff, 3.5 * i, 11, 1.3); l.position.set(x, H - .45, z); scene.add(l); schoolLights.push(l); l.userData.k = i; };
+  // a classroom sliding door. The panel runs on the hallway side of the wall and slides along z toward `dir`.
+  const doorFace = std('#ffffff', { map: T.door, roughness: .6 }), doorEdge = std('#7A4E2E');
+  const slidingDoor = (za, zb, dir, open, interactive = true) => {
+    const x = part, w = zb - za, h = 2.2, zc = (za + zb) / 2;
+    // casing around the opening
+    // the casing overlaps the opening's edges a little, so no face shares a plane with the wall (that flickers dark)
+    box(.26, .08, w + .1, darkWood, x, FL + h - .03, zc, G);
+    for (const zz of [za + .025, zb - .025]) box(.26, h, .07, darkWood, x, FL + h / 2, zz, G);
+    box(.2, .012, w, metal('#9AA0A8'), x - .1, FL + .006, zc, G, false).userData.noCollide = true;   // the floor track: you walk over it
+    const p = group(x - .19, FL, zc);
+    box(.045, h - .02, w + .04, [doorFace, doorFace, doorEdge, doorEdge, doorEdge, doorEdge], 0, h / 2, 0, p);
+    if (!interactive) return;
+    p.traverse(o => { if (o.isMesh) o.userData.noCollide = true; }); dynAll(p);
+    const d = { g: p, x, z0: za, z1: zb, home: zc, dir, slide: w - .02, open, target: open };
+    slideDoors.push(d);
+    addAction(x, zc, 1.7, () => d.target ? 'shimeru' : 'akeru', () => { d.target = 1 - d.target; });
+  };
+  const plate = (text, z, info) => {      // classroom name plate sticking out over the hallway, readable from both ways
+    box(.56, .04, .04, metal('#9AA0A8'), part - .35, FL + 2.66, z, G, false);
+    sign({ lines: [{ t: text, size: .5, color: '#1D2B4A' }], w: .9, h: .24, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', double: true, frameColor: '#C9CDD2' }, part - .55, FL + 2.5, z, 0, info, G);
+  };
+
+  // ================= the street wall: brick with stone coping, gate posts with lamps, the gate rolled open
+  const wx = -6.15;
+  const brick = (w, h) => wallMat('brick', '#A65A40', w, h), cap = std('#D9D2C4', { roughness: .7 });
+  for (const [a, b] of [[4.05, 12.5], [17.5, 25.95]]) { box(.3, 1.25, b - a, brick(b - a, 1.25), wx, .15 + .625, (a + b) / 2, G); box(.38, .08, b - a, cap, wx, 1.44, (a + b) / 2, G); }
+  const iron = metal('#2E3036');
+  for (const pz of [12.85, 17.15]) {
+    box(.7, 2.1, .7, brick(.7, 2.1), wx, .15 + 1.05, pz, G);
+    box(.84, .12, .84, cap, wx, 2.31, pz, G); box(.7, .08, .7, cap, wx, 2.41, pz, G);
+    box(.08, .12, .08, iron, wx, 2.5, pz, G, false);
+    box(.3, .34, .3, glowMat(null, null, .35, 2.4, { color: '#FFF6E2', emissive: 0xffe2b0 }), wx, 2.73, pz, G, false);
+    for (const [dx, dz] of [[-.16, -.16], [.16, -.16], [-.16, .16], [.16, .16]]) box(.03, .38, .03, iron, wx + dx, 2.73, pz + dz, G, false);
+    const roof = mesh(new THREE.ConeGeometry(.3, .2, 4), iron, wx, 3.0, pz, G, false); roof.rotation.y = Math.PI / 4;
+    lampPositions.push(new THREE.Vector3(wx + .5, 2.7, pz));
+  }
+  sign({ text: 'みなと日本語学校', vertical: true, w: .3, h: 1.4, bg: '#3A3833', fg: '#E8D9A8', frameColor: '#8A7A55', font: '"Klee One"' }, wx + .37, 1.2, 17.15, Math.PI / 2, hint.school, G);
+  sign({ lines: [{ t: '生徒', size: .3, color: '#1D2B4A' }, { t: '募集中', size: .3, color: '#D8433F' }], w: .8, h: .95, bg: '#FFF8EC', fg: '#1D2B4A', stripe: '#F4A9BE', frameColor: '#FFFFFF' }, wx + .17, .82, 21.2, Math.PI / 2, hint.boshu, G);
+  box(.06, .02, 3.6, metal('#7E858E'), wx, .155, 15, G, false);                                  // the gate's rail across the opening
+  { const gx = -6.62, ga = 17.6, gb = 21.3, gm = metal('#5E3B3F');                                // the sliding iron gate, pushed open
+    for (const y of [.32, 1.42]) box(.06, .07, gb - ga, gm, gx, y, (ga + gb) / 2, G);
+    for (let z = ga + .06; z < gb; z += .13) box(.035, 1.1, .035, gm, gx, .87, z, G, false);
+    for (const z of [ga + .25, gb - .25]) mesh(new THREE.TorusGeometry(.09, .03, 6, 14), std('#2B2B33'), gx, .24, z, G, false).rotation.y = Math.PI / 2;
+  }
+
+  // ================= the front yard: pavers, two lawns with sakura, low hedges, benches, a notice board
+  floor(T.paving, -15, -6.0, 4.05, 25.95, .153, 2);
+  const lawn = (xa, xb, za, zb) => {
+    floor(T.lawn, xa, xb, za, zb, .168, 2, { roughness: 1 });
+    const curb = std('#CFC8BA', { roughness: .8 });
+    for (const zz of [za - .06, zb + .06]) box(xb - xa + .24, .12, .12, curb, (xa + xb) / 2, .21, zz, G, false);
+    for (const xx of [xa - .06, xb + .06]) box(.12, .12, zb - za, curb, xx, .21, (za + zb) / 2, G, false);
+  };
+  lawn(-13.8, -7.2, 4.6, 11.3); lawn(-13.8, -7.2, 18.7, 25.4);
+  const lowHedge = (xa, xb, z) => {
+    box(xb - xa, .48, .4, std('#2E5A2C'), (xa + xb) / 2, .4, z, G);
+    for (let x = xa + .22; x < xb - .1; x += .42) foliage(G, x, .64 + range(-.03, .03), z + range(-.04, .04), .3, .22, .28, pick(['green', 'dark']), 12, .26);
+  };
+  lowHedge(-13.6, -7.5, 10.95); lowHedge(-13.6, -7.5, 19.05);
+  streetTree(-10.4, 7.4, 'sakura', 1.25);
+  streetTree(-10.6, 22.5, 'sakura', 1.15);
+  for (let i = 0; i < 90; i++) { const p = mesh(new THREE.CircleGeometry(.05, 5), std('#F9C2D1'), range(-14.5, -6.5), .175, range(4.5, 25.5), G, false); p.rotation.x = -Math.PI / 2; }
+  // benches: wooden slats on black iron frames, facing the path
+  const bench = (x, z, ry) => {
+    const g = group(x, .153, z, ry), slat = std('#A0714A', { roughness: .6 });
+    for (let i = 0; i < 4; i++) box(1.5, .035, .09, slat, 0, .44, -.15 + i * .1, g);
+    for (let i = 0; i < 3; i++) box(1.5, .09, .03, slat, 0, .6 + i * .12, -.25 - i * .02, g).rotation.x = -.16;
+    for (const sx of [-.66, .66]) { box(.05, .44, .05, iron, sx, .22, .17, g); box(.05, .86, .05, iron, sx, .43, -.24, g); box(.05, .05, .46, iron, sx, .41, -.03, g); box(.05, .04, .4, iron, sx, .66, .0, g); }
+    addSeat(x, z, ry, 1.15);
+  };
+  bench(-8.5, 11.75, 0); bench(-11.0, 11.75, 0); bench(-8.6, 18.25, Math.PI); bench(-11.1, 18.25, Math.PI);
+  // notice board on two posts, under a little roof, by the lawn
+  { const nx = -13.0, nz = 11.62;
+    for (const dx of [-.78, .78]) box(.07, 1.9, .07, metal('#4A5058'), nx + dx, .153 + .95, nz, G);
+    box(1.7, 1.05, .1, metal('#4A5058'), nx, 1.4, nz, G);
+    sign({ tex: T.felt(1.5, .9, ['お知らせ', '図書室', '遠足']), w: 1.5, h: .9, frame: false, day: .15, night: .3 }, nx, 1.4, nz + .055, 0, hint.oshirase, G);
+    box(1.52, .92, .01, glassM, nx, 1.4, nz + .075, G, false);
+    box(1.85, .05, .3, metal('#3A3F47'), nx, 2.0, nz + .02, G).rotation.x = -.12;
+    sign({ lines: [{ t: 'お知らせ', size: .6, color: '#FFFFFF' }], w: .7, h: .2, bg: '#1D2B4A', fg: '#FFF', frame: false }, nx, 1.84, nz + .06, 0, hint.oshirase, G);
+  }
+  // flower planters under the ground-floor windows
+  const planter = (za, zb) => {
+    box(.55, .42, zb - za, brick(zb - za, .42), -14.62, .153 + .21, (za + zb) / 2, G);
+    box(.45, .02, zb - za - .1, std('#4A3A2E'), -14.62, .58, (za + zb) / 2, G, false);
+    for (let z = za + .3; z < zb - .2; z += .5) foliage(G, -14.62, .72, z, .24, .16, .26, 'dark', 9, .22);
+  };
+  planter(17.9, 25.6); planter(8.0, 12.3);
+  // umbrella stand under the canopy
+  { const ux = -14.55, uz = 13.25;
+    box(.36, .05, .5, steel, ux, .55, uz, G); box(.36, .05, .5, steel, ux, .2, uz, G);
+    for (const [dx, dz] of [[-.16, -.23], [.16, -.23], [-.16, .23], [.16, .23]]) box(.03, .6, .03, steel, ux + dx, .45, uz + dz, G, false);
+    for (const [dz, c] of [[-.12, '#2F6FB8'], [.02, '#3A3A40'], [.15, '#F4A9BE']]) { cyl(.012, .012, .8, metal('#7E858E'), ux, .58, uz + dz, 5, G, false); cyl(.035, .06, .55, std(c), ux, .62, uz + dz, 8, G, false); }
+    sign({ lines: [{ t: '傘立て', size: .55, color: '#1D2B4A' }], w: .34, h: .12, bg: '#FFFFFF', fg: '#1D2B4A', frame: false }, ux + .19, .5, uz, Math.PI / 2, hint.kasa, G);
+  }
+
+  // ================= the building: upper floors from the street builder, the ground floor built by hand
+  const B = building(-1, 26, 4, { h: 11.2, wall: '#F1ECE3', style: 'tile', floors: 2, cols: 6, ac: 0, lit: .7, ground: 'entrance', groundH: H, setback: 9, depth: 13, roof: true, interior: true, posters: false });
+  // front wall (x = -15): stair window, teachers' room windows (blinds down), the entrance, three classroom windows
+  const winLo = FL + .85, winHi = 2.95;
+  const classWins = [[17.85, 20.35], [20.55, 23.05], [23.25, 25.55]];
+  wallZ(fx - .1, z0 - .2, z1 + .2, [[4.6, 7.2, 2.25, 3.12], [8.0, 12.2, winLo, winHi], [13.4, 16.6, 0, 2.9], ...classWins.map(([a, b]) => [a, b, winLo, winHi])], outside, plaster);
+  box(.06, .34, z1 - z0 + .4, std('#A39E95'), fx + .03, .17, 15, G, false);                       // dark plinth along the bottom
+  windowZ(fx - .1, 4.6, 7.2, 2.25, 3.12); windowZ(fx - .1, 8.0, 12.2, winLo, winHi, 3);
+  for (const [a, b] of classWins) windowZ(fx - .1, a, b, winLo, winHi);
+  { const bl = mesh(new THREE.PlaneGeometry(4.15, winHi - winLo - .1), std('#ffffff', { map: rep(T.blinds, 1, (winHi - winLo) / .4), side: THREE.DoubleSide }), fx - .3, (winLo + winHi) / 2, 10.1, G, false); bl.rotation.y = Math.PI / 2; }
+  // the entrance: fixed glass on both sides, the two doors slid open behind them, a transom above
+  for (const [a, b] of [[13.4, 14.2], [15.8, 16.6]]) {
+    for (const off of [0, -.07]) { box(.025, 2.5, b - a - .06, glassM, fx - .07 + off, .16 + 1.25, (a + b) / 2, G, false); for (const zz of [a + .03, b - .03]) box(.05, 2.55, .05, alu, fx - .07 + off, .16 + 1.27, zz, G, false); for (const yy of [.2, 2.66]) box(.05, .07, b - a, alu, fx - .07 + off, yy, (a + b) / 2, G, false); }
+  }
+  box(.1, .08, 3.2, alu, fx - .1, 2.72, 15, G, false); box(.02, .16, 3.1, glassM, fx - .1, 2.82, 15, G, false);
+  { const mat = mesh(new THREE.PlaneGeometry(1.4, 1.6), std('#4A4E56', { roughness: 1 }), fx - .95, .165, 15, G, false); mat.rotation.x = -Math.PI / 2; }
+  // canopy over the entrance with the school's name, and the school clock above it
+  box(2.0, .4, 4.2, std('#F4F2EC'), fx + 1.0, 3.1, 15, G);
+  box(1.9, .02, 4.1, std('#DCD8CF'), fx + 1.0, 2.89, 15, G, false);
+  for (const dz of [-1.95, 1.95]) cyl(.07, .07, 2.75, metal('#B5B9C0'), fx + 1.85, .153 + 1.375, 15 + dz, 10, G);
+  sign({ lines: [{ t: 'みなと日本語学校', size: .62 }], w: 3.6, h: .34, bg: '#1D2B4A', fg: '#FFFFFF', frame: false }, fx + 2.01, 3.1, 15, Math.PI / 2, hint.school, G);
+  { const ck = mesh(new THREE.CircleGeometry(.48, 40), std('#ffffff', { map: T.clock }), fx + .09, 4.75, 15, G, false); ck.rotation.y = Math.PI / 2;
+    ck.userData.info = hint.tokei; tappables.push(ck); dynamic.add(ck);
+    const rim = cyl(.53, .53, .08, metal('#C9CDD2'), fx + .04, 4.75, 15, 32, G, false); rim.rotation.z = Math.PI / 2; }
+  // side walls of the ground floor, and the back wall with the hallway windows
+  wallX(z0 - .1, back - .25, fx, [], plaster, outside); wallX(z1 + .1, back - .25, fx, [], outside, plaster);
+  const hallWins = [[4.9, 7.7], [8.1, 10.9], [11.3, 14.1], [14.5, 17.3], [17.7, 20.5], [20.9, 23.7]];
+  wallZ(back - .125, z0, z1, hallWins.map(([a, b]) => [a, b, FL + .9, 2.8]), plaster, outside, .25);
+  for (const [a, b] of hallWins) windowZ(back - .125, a, b, FL + .9, 2.8);
+  // inside walls: the hallway wall (x = -24.5) with the doors, and the walls between the rooms
+  const dB = [18.1, 19.4], dF = [24.0, 25.3], dT = [10.65, 11.95];        // back and front classroom doors, teachers' room door
+  wallZ(part, 7.6, 12.5, [[dT[0], dT[1], 0, FL + 2.2]], plaster, plaster, .14);
+  wallZ(part, 17.5, z1, [[dB[0], dB[1], 0, FL + 2.2], [dF[0], dF[1], 0, FL + 2.2]], plaster, plaster, .14);
+  wallX(17.5, part + .07, fx - .2, [], plaster, plaster, .14);
+  wallX(12.5, part + .07, fx - .2, [[-21.85, -20.15, 1.0, 2.1]], plaster, plaster, .14);
+  wallX(7.6, part + .07, fx - .2, [], plaster, plaster, .14);
+  // floors and one ceiling over the whole ground floor
+  floor(T.terrazzo, SCH.step, fx - .2, 12.57, 17.43, .16, 1.2, { roughness: .35 });
+  floor(T.lino, back, part - .07, z0, z1, FL, 2, { roughness: .34, metalness: .04 });
+  floor(T.lino, part - .07, SCH.step, 12.57, 17.43, FL, 2, { roughness: .34, metalness: .04 });
+  floor(T.lino, part + .07, fx - .2, z0, 7.53, FL, 2, { roughness: .34, metalness: .04 });
+  floor(T.parquet, part + .07, fx - .2, 17.57, z1, FL, 1.2, { roughness: .4 });
+  floor(T.ceiling, back, fx - .2, z0, z1, H - .005, 1.2, {}, true);
+  // hallway trim: baseboards and a wooden rail at hand height
+  for (const [x, a, b] of [[back + .015, z0, z1], [part - .085, 7.6, dT[0]], [part - .085, dT[1], 12.5], [part - .085, 17.5, dB[0]], [part - .085, dB[1], dF[0]]]) {
+    box(.03, .1, b - a, std('#5E6B66'), x, FL + .05, (a + b) / 2, G, false);
+    box(.04, .06, b - a, wood, x + (x < -26 ? .01 : -.01), FL + .88, (a + b) / 2, G, false);
+  }
+
+  // ================= 昇降口: the entrance. Step out of your shoes here, then up onto the hallway floor.
+  // the step up (上がり框) with a wooden edge, and a slatted duckboard (すのこ) in front of it
+  { const s = box(.08, FL - .16, 4.86, wood, SCH.step + .02, (FL + .16) / 2, 15, G, false); s.userData.noCollide = true;
+    const e = box(.12, .04, 4.86, darkWood, SCH.step - .02, FL - .015, 15, G, false); e.userData.noCollide = true;
+    for (let i = 0; i < 6; i++) { const sl = box(.1, .03, 3.4, std('#C9A57A', { roughness: .7 }), SCH.step + .25 + i * .15, .2, 15, G, false); sl.userData.noCollide = true; }
+    for (const z of [13.5, 16.5]) { const r = box(.95, .03, .06, std('#8A6A45'), SCH.step + .62, .175, z, G, false); r.userData.noCollide = true; } }
+  // shoe lockers along both walls and a double-sided island in the middle
+  const getabako = (xa, xb, z, faces) => {   // faces: 1 = front toward +z, -1 = toward -z, 0 = both (island)
+    const len = xb - xa, d = faces ? .38 : .76, h = 1.85, zc = z + faces * d / 2;
+    const front = std('#ffffff', { map: rep(T.getabako, len, 1), roughness: .7 }), side = std('#B9874F', { roughness: .6 });
+    const b = box(len, h, d, [side, side, side, side, faces >= 0 ? front : side, faces <= 0 ? front : side], (xa + xb) / 2, .16 + h / 2, zc, G);
+    b.userData.info = hint.getabako; tappables.push(b); dynamic.add(b);
+    box(len + .04, .03, d + .04, std('#9A6A3E'), (xa + xb) / 2, .16 + h + .015, zc, G, false);
+  };
+  getabako(-19.9, -15.6, 12.57, 1); getabako(-21.7, -15.6, 17.43, -1); getabako(-20.4, -17.3, 15, 0);
+  sign({ lines: [{ t: '上履きに', size: .3, color: '#1D2B4A' }, { t: 'はきかえてください', size: .2, color: '#C0392B' }], top: .44, gap: .36, w: .7, h: .5, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#C9CDD2' }, -17.25, 1.45, 15, Math.PI / 2, hint.uwabaki, G);
+  sign({ lines: [{ t: '土足禁止', size: .55, color: '#FFFFFF' }], w: .8, h: .26, bg: '#D8433F', fg: '#FFF', frame: false }, -23.2, FL + 1.55, 17.42, Math.PI, hint.dosoku, G);
+  // the reception window into the teachers' room: frosted sliding glass, a ledge with a bell and a visitor book
+  { const rz = 12.5, frost = std('#E3ECEF', { transparent: true, opacity: .82, roughness: .3 });
+    for (const [a, b] of [[-21.85, -21.0], [-21.05, -20.15]]) box(b - a, 1.02, .02, frost, (a + b) / 2, 1.55, rz + (a < -21.5 ? .01 : -.01), G, false);
+    for (const x of [-21.85, -21.0, -20.15]) box(.04, 1.1, .08, alu, x, 1.55, rz, G, false);
+    box(1.76, .04, .4, wood, -21.0, 1.0, rz + .2, G);
+    box(.22, .03, .3, std('#2E3550'), -21.4, 1.035, rz + .22, G, false);
+    mesh(new THREE.SphereGeometry(.05, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), metal('#C9A45A'), -20.6, 1.02, rz + .22, G, false);
+    sign({ lines: [{ t: '受付', size: .6, color: '#FFFFFF' }], w: .6, h: .25, bg: '#1D2B4A', fg: '#FFF', frame: false }, -21.0, 2.35, rz + .08, 0, hint.uketsuke, G);
+  }
+  // a welcome banner hanging over the step
+  sign({ lines: [{ t: 'ようこそ', size: .6, color: '#FFFFFF' }], w: 1.6, h: .38, bg: '#F08FAA', fg: '#FFF', frameColor: '#FFFFFF' }, SCH.step + .3, 2.75, 15, Math.PI / 2, hint.yokoso, G);
+  for (const dz of [-.7, .7]) cyl(.004, .004, .35, metal('#777'), SCH.step + .3, 3.1, 15 + dz, 4, G, false);
+  lamp(-17.4, 15, false); lamp(-20.6, 15, false);
+  light(-18.8, 15, .8);
+
+  // ================= 職員室: the teachers' room (closed for now)
+  slidingDoor(dT[0], dT[1], -1, 0, false);
+  plate('職員室', 11.3, hint.shokuin);
+
+  // ================= the stairs to the second floor (roped off): two flights around a landing
+  { const tread = std('#ffffff', { map: rep(T.lino, .5, .5), roughness: .3 }), riser = std('#E9E4D6'), nose = std('#5E6B66');
+    const R = .17, D = .28, xA = -21.0, yL = FL + R * 10;
+    for (let i = 0; i < 10; i++) {                                     // flight A: up toward the front wall
+      const x = xA + i * D + D / 2, top = FL + R * (i + 1);
+      box(D, top - FL, 1.55, [riser, riser, tread, riser, riser, riser], x, (FL + top) / 2, 5.02, G);
+      box(.03, .025, 1.55, nose, x - D / 2 + .015, top - .012, 5.02, G, false);
+    }
+    box(-15.2 - (xA + 10 * D), yL - FL, 3.3, [riser, riser, tread, riser, riser, riser], (xA + 10 * D - 15.2) / 2, (FL + yL) / 2, 5.88, G);   // landing
+    for (let i = 0; i < 7; i++) {                                      // flight B: back toward the hallway, up through the ceiling
+      const x = xA + 10 * D - i * D - D / 2, top = yL + R * (i + 1);
+      box(D, R, 1.5, [riser, riser, tread, riser, riser, riser], x, top - R / 2, 6.75, G);
+      box(.03, .025, 1.5, nose, x + D / 2 - .015, top - .012, 6.75, G, false);
+    }
+    { const run = 7 * D, rise = 7 * R, L = Math.hypot(run, rise), ang = Math.atan2(rise, run);
+      const sl = box(L, .14, 1.5, riser, xA + 10 * D - run / 2, yL + rise / 2 - .2, 6.75, G); sl.rotation.z = -ang; }
+    // a low wall between the flights with a wooden rail, and rails on the walls
+    for (let i = 0; i < 10; i++) { const x = xA + i * D + D / 2, top = FL + R * (i + 1); box(D, .9, .1, plaster, x, top + .45, 5.86, G); }
+    const railA = Math.hypot(10 * D, 10 * R), angA = Math.atan2(10 * R, 10 * D);
+    for (const z of [5.86, z0 + .06]) { const r = box(railA, .05, z === 5.86 ? .14 : .06, wood, xA + 5 * D, FL + 5 * R + .9, z, G, false); r.rotation.z = angA; }
+    // a rope across the bottom of the stairs: 立入禁止 (no entry)
+    for (const z of [4.45, 5.65]) { cyl(.025, .025, .9, metal('#C9A45A'), xA - .35, FL + .45, z, 8, G); cyl(.12, .14, .04, metal('#C9A45A'), xA - .35, FL + .02, z, 12, G); }
+    { const rope = cyl(.015, .015, 1.2, std('#C0392B'), xA - .35, FL + .82, 5.05, 6, G, false); rope.rotation.x = Math.PI / 2; }
+    sign({ lines: [{ t: '立入禁止', size: .55, color: '#FFFFFF' }], w: .62, h: .22, bg: '#D8433F', fg: '#FFF', frame: false, double: true }, xA - .36, FL + .65, 5.05, -Math.PI / 2, hint.tachiiri, G);
+    lamp(-19.5, 5.9, true);
+  }
+
+  // ================= 廊下: the hallway along the back
+  for (let z = 6; z < 25; z += 3.2) lamp(-26.15, z, false);
+  light(-25.4, 7.2); light(-26.15, 20);
+  // notice board between the classroom doors (clear of where the open doors slide), with two posters you can read
+  { const bz = 21.7, bx = part - .085;
+    sign({ tex: T.felt(1.9, 1.1, ['図書室'], .4), w: 1.9, h: 1.1, frameColor: '#8A5A36', day: .12, night: .25 }, bx - .02, FL + 1.55, bz, -Math.PI / 2, hint.oshirase, G);
+    sign({ tex: T.rouka, w: .46, h: .62, frame: false, day: .15, night: .3 }, bx - .07, FL + 1.55, 21.78, -Math.PI / 2 + .02, hint.rouka, G);
+    sign({ tex: T.speech, w: .46, h: .62, frame: false, day: .15, night: .3 }, bx - .07, FL + 1.55, 22.3, -Math.PI / 2 - .02, hint.speech, G);
+  }
+  // fire extinguisher and the emergency exit sign at the end of the hallway
+  { const ex = back + .25, ez = 24.3, red = std('#D8433F', { roughness: .35 });
+    cyl(.09, .09, .5, red, ex, FL + .3, ez, 14, G); cyl(.03, .03, .08, metal('#2B2B33'), ex, FL + .59, ez, 8, G, false);
+    box(.1, .03, .05, metal('#2B2B33'), ex + .05, FL + .64, ez, G, false); cyl(.012, .012, .3, std('#2B2B33'), ex + .1, FL + .45, ez + .05, 5, G, false);
+    sign({ lines: [{ t: '消火器', size: .55, color: '#FFFFFF' }], w: .5, h: .2, bg: '#D8433F', fg: '#FFF', frame: false }, back + .02, FL + 1.05, ez, Math.PI / 2, hint.shokaki, G);
+    sign({ tex: T.hijo, w: .9, h: .32, frameColor: '#E9E9E6', day: .8, night: 1.6 }, -26.15, FL + 2.45, z1 - .03, Math.PI, hint.hijo, G);
+  }
+
+  // ================= 初級クラス: the classroom
+  slidingDoor(dB[0], dB[1], 1, 1); slidingDoor(dF[0], dF[1], -1, 0);
+  plate('初級クラス', 18.75, hint.shokyu); plate('初級クラス', 24.65, hint.shokyu);
+  const BZ = z1;                                                         // the board wall
+  // windows: curtains tied back at every frame, a rail along the top
+  { const cm = std('#ffffff', { map: T.curtain, roughness: .95 });
+    const rail = cyl(.015, .015, z1 - 17.6, metal('#C9CDD2'), fx - .32, winHi + .12, (17.6 + z1) / 2, 6, G, false); rail.rotation.x = Math.PI / 2;
+    for (const z of [17.95, 20.45, 22.95, 25.45]) {
+      const c = box(.1, winHi + .1 - (FL + .5), .34, cm, fx - .3, (winHi + .1 + FL + .5) / 2, z, G); c.userData.noCollide = true;
+      box(.12, .04, .38, std('#C9B48A'), fx - .3, FL + 1.25, z, G, false);
+    }
+  }
+  // the blackboard: three panels, a chalk tray with chalk and an eraser
+  [[T.boardL, hint.kudasai], [T.boardC, hint.hotice], [T.boardR, hint.sakura]].forEach(([tex, info], i) =>
+    sign({ tex, w: 2.1, h: 1.2, frameColor: '#A9ADB2', day: .1, night: .18 }, -17.65 - i * 2.1, FL + 1.62, BZ - .04, Math.PI, info, G));
+  box(6.4, .04, .1, alu, -19.75, FL + 1.0, BZ - .1, G, false);
+  for (const [dx, c] of [[-1.2, '#FFFFFF'], [-1.1, '#F6E27A'], [-.95, '#F7B3C6'], [.6, '#FFFFFF']]) { const ch = cyl(.007, .007, .08, std(c), -19.75 + dx, FL + 1.03, BZ - .1, 6, G, false); ch.rotation.z = Math.PI / 2; }
+  box(.14, .05, .06, std('#3A4A6A'), -19.75 + 1.4, FL + 1.045, BZ - .1, G, false);
+  // clock above the board, a speaker, a TV in the window corner
+  { const ck = mesh(new THREE.CircleGeometry(.2, 32), std('#ffffff', { map: T.clock }), -19.75, FL + 2.58, BZ - .045, G, false); ck.rotation.y = Math.PI;
+    ck.userData.info = hint.tokei; tappables.push(ck); dynamic.add(ck);
+    const rim = cyl(.22, .22, .04, metal('#C9CDD2'), -19.75, FL + 2.58, BZ - .02, 24, G, false); rim.rotation.x = Math.PI / 2; }
+  box(.34, .24, .1, std('#EDEAE3'), -23.6, FL + 2.6, BZ - .06, G, false);
+  { const tv = group(-15.85, FL + 2.35, 25.15, -2.35);
+    box(1.0, .6, .06, std('#1E2026', { roughness: .3 }), 0, 0, 0, tv); box(.92, .52, .01, std('#2A303A', { roughness: .1, metalness: .3 }), 0, 0, .035, tv, false);
+    box(.06, .06, .3, metal('#7E858E'), 0, .1, -.18, tv, false); }
+  // the teacher's platform (教壇) and desk (教卓) with a register, a chalk box and flowers
+  { const pl = box(6.9, .2, 1.3, std('#8A5A36', { roughness: .5 }), -19.75, FL + .1, BZ - .65, G); pl.userData.noCollide = true;
+    const tz = BZ - .95, ty = FL + .2;
+    box(.95, .9, .55, std('#B08A5E', { roughness: .5 }), -19.75, ty + .45, tz, G);
+    box(1.0, .04, .6, std('#D9C3A0', { roughness: .45 }), -19.75, ty + .92, tz, G, false);
+    box(.24, .03, .32, std('#1E2A44'), -19.95, ty + .955, tz, G, false);
+    box(.12, .06, .08, std('#F4F2EC'), -19.55, ty + .97, tz - .1, G, false);
+    cyl(.05, .04, .16, std('#9FC3D9', { roughness: .1, transparent: true, opacity: .6 }), -19.35, ty + 1.02, tz + .1, 10, G, false);
+    foliage(G, -19.35, ty + 1.18, tz + .1, .1, .1, .1, 'sakura', 10, .12);
+  }
+  // 12 desks in three rows facing the board, with wide aisles to walk around; every chair can be sat on
+  const deskTop = std('#DCC7A4', { roughness: .5 }), seatWood = std('#C9A57A', { roughness: .55 });
+  const desk = (x, z) => {
+    box(.64, .03, .46, deskTop, x, FL + .71, z, G);
+    box(.58, .1, .4, steel, x, FL + .64, z + .01, G);
+    for (const sx of [-.28, .28]) for (const sz of [-.19, .19]) box(.025, .62, .025, steel, x + sx, FL + .31, z + sz, G);
+    for (const sx of [-.28, .28]) box(.02, .02, .38, steel, x + sx, FL + .12, z, G, false);
+    const t = rand();
+    if (t < .45) box(.21, .015, .28, std(pick(['#D8433F', '#2F6FB8', '#3C9D5D', '#F2C230', '#F4F2EC'])), x + range(-.12, .12), FL + .733, z + range(-.06, .04), G, false);
+    else if (t < .65) { box(.36, .01, .26, std('#F7F5EE'), x - .08, FL + .73, z - .04, G, false); const pc = cyl(.008, .008, .16, std('#F2C230'), x + .14, FL + .735, z - .02, 6, G, false); pc.rotation.z = Math.PI / 2; }
+    if (rand() < .35) box(.08, .3, .32, std(pick(['#2E3550', '#3A3A40', '#6B4A32', '#C0392B'])), x + (rand() < .5 ? -.35 : .35), FL + .48, z, G, false);   // a bag on the desk's hook
+  };
+  const chair = (x, z) => {                                              // faces +z, toward the board
+    const c = group(x, FL, z);
+    box(.4, .025, .38, seatWood, 0, .42, 0, c);
+    box(.38, .2, .02, seatWood, 0, .72, -.2, c);
+    for (const sx of [-.18, .18]) { box(.022, .42, .022, steel, sx, .21, .17, c); box(.022, .82, .022, steel, sx, .41, -.18, c); }
+    box(.38, .02, .02, steel, 0, .6, -.19, c, false);
+    addSeat(x, z, 0, 1.12);
+  };
+  for (const z of [19.75, 21.35, 22.95]) for (const x of [-16.8, -18.75, -20.7, -22.65]) { desk(x, z); chair(x + range(-.03, .03), z - .5 + range(-.04, .03)); }
+  // cubbies along the back wall, a notice board with the timetable, and the class motto
+  { const len = 6.6, xc = -19.0, zc = 17.57 + .2;
+    const front = std('#ffffff', { map: rep(T.cubby, len, 1), roughness: .7 }), side = std('#EDEAE3', { roughness: .6 });
+    box(len, 1.0, .4, [side, side, std('#D9C3A0'), side, front, side], xc, FL + .5, zc, G);
+    plantPot(xc - 2.8, FL + 1.0, zc, .55); plantPot(xc + 2.9, FL + 1.0, zc, .5);
+    box(.3, .06, .22, std('#F4F2EC'), xc - 1.2, FL + 1.03, zc, G, false); box(.28, .04, .2, std('#E3F0FB'), xc - 1.18, FL + 1.08, zc, G, false);
+    sign({ tex: T.felt(5.2, 1.0, ['お知らせ', '図書室', '保健', '遠足', '漢字テスト'], .62), w: 5.2, h: 1.0, frameColor: '#8A5A36', day: .12, night: .25 }, -19.2, FL + 1.85, 17.6, 0, hint.oshirase, G);
+    sign({ tex: T.jikanwari, w: .9, h: .72, frame: false, day: .15, night: .3 }, -17.3, FL + 1.85, 17.63, 0, hint.jikanwari, G);
+    sign({ lines: [{ t: '毎日すこしずつ', size: .62, color: '#C0466A' }], w: 2.2, h: .32, bg: '#FFF8EC', fg: '#C0466A', frameColor: '#F4A9BE' }, -19.75, FL + 2.68, 17.6, 0, hint.mokuhyo, G);
+  }
+  // the hiragana chart on the wall between the two doors
+  sign({ tex: T.kana, w: 1.6, h: 1.05, frameColor: '#FFFFFF', day: .15, night: .3 }, part + .1, FL + 1.65, 21.75, Math.PI / 2, hint.hiragana, G);
+  for (const x of [-17.0, -19.75, -22.5]) for (const z of [19.8, 22.9]) lamp(x, z, true);
+  light(-17.8, 21.5); light(-21.8, 21.5);
+
+  // ================= behind the school: a strip of grass, trees and a fence, so the hallway windows look out on green
+  floor(T.lawn, -42, back - .25, -2, 32, .02, 2, { roughness: 1 });
+  for (const [z, s] of [[6.5, 1.1], [13.5, 1.25], [20.5, 1.05], [27, 1.15]]) streetTree(-32.2, z, 'green', s);
+  { const ft = canvasTex(128, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(120,128,138,1)'; g.lineWidth = 2; for (let i = -h; i < w; i += 12) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i + h, 0); g.lineTo(i, h); g.stroke(); } }, [18, 1]);
+    const f = mesh(new THREE.PlaneGeometry(34, 1.8), std('#fff', { map: ft, transparent: true, alphaTest: .4, side: THREE.DoubleSide }), -35, .92, 15, G, false); f.rotation.y = Math.PI / 2;
+    for (let z = -2; z <= 32; z += 2.5) box(.06, 1.85, .06, metal('#7E858E'), -35, .93, z, G, false); }
+
+  claim(-1, 'wall', 4, 26);                     // nothing piles in front of the school wall
+}
+
 // ================================================================ the café (walk-in)
 const cafeDoor = { panels: [], open: 0, z: 0, x: 0 };
 function cafeInterior(B) {
@@ -2511,24 +3181,28 @@ function buildStreet() {
   B = building(-1, 36, 26, { h: 9, wall: '#7FA8D6', style: 'mosaic', floors: 2, cols: 2, ground: 'shop', ac: .6 });
   shopSign(B, 'さくら書店', ['#FFF6E2', '#2E6B53', '#3E8E6E'], hint.shoten); awning(B, '#3E8E6E', '#F4F1E6'); blade(B, '本', ['#2E6B53', '#FFFFFF'], hint.shoten, 5.6);
 
-  // the language school, set back behind a stone wall with a hedge and a gate
-  B = building(-1, 26, 4, { h: 11.5, wall: '#F1ECE3', style: 'tile', floors: 3, cols: 6, ac: .25, lit: .7, ground: 'entrance', setback: 3.2, depth: 14, roof: true, name: '受付  RECEPTION' });
-  // entrance canopy; the school's name is on its front edge
-  box(1.9, .55, 4.6, std('#F7F5F0'), B.out(.95), 3.2, 15);
-  box(1.9, .05, 4.6, std('#D9D4CA'), B.out(.95), 2.92, 15, scene, false);
-  sign({ lines: [{ t: 'みなと日本語学校', size: .62 }], w: 4.2, h: .42, bg: '#1D2B4A', fg: '#FFFFFF', frame: false }, B.out(1.91), 3.2, 15, Math.PI / 2, hint.school);
-  for (const dz of [-1.9, 1.9]) cyl(.06, .06, 2.9, metal('#B5B9C0'), B.out(1.75), 1.45, 15 + dz, 8);
-  const yard = mesh(new THREE.PlaneGeometry(3.2, 22), std('#E2D8C6'), -7.6, .02, 15, scene, false); yard.rotation.x = -Math.PI / 2;
-  stone(.35, .9, 8.4, -6.0, .45 + .15, 21.6); stone(.35, .9, 9.6, -6.0, .6, 8.8);
-  hedge(-6.05, 21.6, 8.2); hedge(-6.05, 8.8, 9.4);
-  stone(.7, 1.6, .7, -6.0, .95, 17.2); stone(.7, 1.6, .7, -6.0, .95, 13.8);
-  box(.8, .1, .8, std('#BDB4A5'), -6.0, 1.8, 17.2); box(.8, .1, .8, std('#BDB4A5'), -6.0, 1.8, 13.8);
-  sign({ text: '日本語学校', vertical: true, w: .42, h: 1.25, bg: '#E7CFA6', fg: '#2A2230', font: '"Klee One"', frameColor: '#B99A70' }, -5.62, 1.0, 17.2, Math.PI / 2, hint.school);
-  sign({ lines: [{ t: '生徒', size: .3, color: '#1D2B4A' }, { t: '募集中', size: .3, color: '#D8433F' }], w: .8, h: 1.1, bg: '#FFF8EC', fg: '#1D2B4A', stripe: '#F4A9BE', frameColor: '#FFFFFF' }, -5.62, 1.0, 13.8, Math.PI / 2, hint.boshu);
-  streetTree(-7.8, 21, 'sakura', 1.25);
-  streetTree(-7.8, 7.5, 'sakura', 1.1);
-  for (let i = 0; i < 60; i++) { const p = mesh(new THREE.CircleGeometry(.05, 5), std('#F9C2D1'), range(-5.8, -3.8), .16, range(4, 26), scene, false); p.rotation.x = -Math.PI / 2; }
-  claim(-1, 'wall', 4, 26);                     // nothing piles in front of the school wall
+  // the language school (walk-in), set back behind a brick wall with a gate and a front yard.
+  // The old closed facade is still built first and thrown away at once: only so the random numbers and the shared
+  // window textures come out exactly as before, which keeps every later building and prop on the street where it was.
+  ghostBuild(() => {
+    const B = building(-1, 26, 4, { h: 11.5, wall: '#F1ECE3', style: 'tile', floors: 3, cols: 6, ac: .25, lit: .7, ground: 'entrance', setback: 3.2, depth: 14, roof: true, name: '受付  RECEPTION' });
+    // entrance canopy; the school's name is on its front edge
+    box(1.9, .55, 4.6, std('#F7F5F0'), B.out(.95), 3.2, 15);
+    box(1.9, .05, 4.6, std('#D9D4CA'), B.out(.95), 2.92, 15, scene, false);
+    sign({ lines: [{ t: 'みなと日本語学校', size: .62 }], w: 4.2, h: .42, bg: '#1D2B4A', fg: '#FFFFFF', frame: false }, B.out(1.91), 3.2, 15, Math.PI / 2, hint.school);
+    for (const dz of [-1.9, 1.9]) cyl(.06, .06, 2.9, metal('#B5B9C0'), B.out(1.75), 1.45, 15 + dz, 8);
+    const yard = mesh(new THREE.PlaneGeometry(3.2, 22), std('#E2D8C6'), -7.6, .02, 15, scene, false); yard.rotation.x = -Math.PI / 2;
+    stone(.35, .9, 8.4, -6.0, .45 + .15, 21.6); stone(.35, .9, 9.6, -6.0, .6, 8.8);
+    hedge(-6.05, 21.6, 8.2); hedge(-6.05, 8.8, 9.4);
+    stone(.7, 1.6, .7, -6.0, .95, 17.2); stone(.7, 1.6, .7, -6.0, .95, 13.8);
+    box(.8, .1, .8, std('#BDB4A5'), -6.0, 1.8, 17.2); box(.8, .1, .8, std('#BDB4A5'), -6.0, 1.8, 13.8);
+    sign({ text: '日本語学校', vertical: true, w: .42, h: 1.25, bg: '#E7CFA6', fg: '#2A2230', font: '"Klee One"', frameColor: '#B99A70' }, -5.62, 1.0, 17.2, Math.PI / 2, hint.school);
+    sign({ lines: [{ t: '生徒', size: .3, color: '#1D2B4A' }, { t: '募集中', size: .3, color: '#D8433F' }], w: .8, h: 1.1, bg: '#FFF8EC', fg: '#1D2B4A', stripe: '#F4A9BE', frameColor: '#FFFFFF' }, -5.62, 1.0, 13.8, Math.PI / 2, hint.boshu);
+    streetTree(-7.8, 21, 'sakura', 1.25);
+    streetTree(-7.8, 7.5, 'sakura', 1.1);
+    for (let i = 0; i < 60; i++) { const p = mesh(new THREE.CircleGeometry(.05, 5), std('#F9C2D1'), range(-5.8, -3.8), .16, range(4, 26), scene, false); p.rotation.x = -Math.PI / 2; }
+  });
+  isolated(buildSchool);
   vending(-1, 2.6, '#D9443F');
 
   B = building(-1, 4, -6, { h: 6.6, wall: '#B07A55', style: 'wood', floors: 1, cols: 2, ground: 'shop' });
@@ -2718,6 +3392,7 @@ function buildStreet() {
     const side = rand() < .5 ? -1 : 1;
     const x = side * range(22, 120), z = range(-420, 160), h = range(12, 55), w = range(8, 18);
     const f = facade(w, h, { wall: pick(['#D8DEE8', '#E8E2D8', '#C9D3E2', '#E9DAD5', '#DADCD8']), style: 'panel', floors: Math.round(h / 3.4), cols: Math.round(w / 3), groundH: 0, lit: .35, px: 10 });
+    if (x + w / 2 > -44 && x - w / 2 < -6 && z + w / 2 > -4 && z - w / 2 < 34) continue;      // keep the space behind the school open
     mesh(new THREE.BoxGeometry(w, h, w), glowMat(f.map, f.night, 0, .9), x, h / 2, z, scene, false);
   }
   for (let i = 0; i < 30; i++) {
@@ -2828,6 +3503,7 @@ function setTime(t) {
   bloom.strength = T.bloom;
   renderer.toneMappingExposure = T.exposure;
   for (const l of cafeLights) l.intensity = T.night ? 4.5 : 4;
+  for (const l of schoolLights) l.intensity = (T.night ? 5 : 3.5) * l.userData.k;
   document.querySelectorAll('#tod button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === t));
 }
 
@@ -2942,6 +3618,7 @@ function blocked(x, z) {
     if (D.open < .7 && x > D.x - .1 - RADIUS && x < D.x + .2 + RADIUS && z > D.z0 - RADIUS && z < D.z1 + RADIUS) return true;
     if (D.open > .3 && x > D.x && x < D.x + .9 + RADIUS && z > D.z0 - .06 - RADIUS && z < D.z0 + .06 + RADIUS) return true;
   }
+  for (const d of slideDoors) if (d.open < .75 && Math.abs(x - d.x) < .12 + RADIUS && z > d.z0 - .05 && z < d.z1 + .05) return true;
   for (const m of movers) if (Math.abs(x - m.g.position.x) < 1.15 && Math.abs(z - m.g.position.z) < 2.2) return true;
   for (const b of colliders)
     if (x > b.min.x - RADIUS && x < b.max.x + RADIUS && z > b.min.z - RADIUS && z < b.max.z + RADIUS) return true;
@@ -3195,7 +3872,8 @@ function frame() {
     const dir = new THREE.Vector3(side, 0, -fwd).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
     const inCafeZ = cafeDoor.z && player.pos.z > cafeDoor.za && player.pos.z < cafeDoor.zb;
     const inRestZ = restroom.rz0 && player.pos.z > restroom.rz0 && player.pos.z < restroom.rz1;
-    const nx = THREE.MathUtils.clamp(player.pos.x + dir.x * speed * dt, -5.6, inCafeZ ? (inRestZ ? restroom.x1 - .3 : 13.8) : 5.6);
+    const inSchoolZ = player.pos.z > 4.1 && player.pos.z < 25.9;      // walls and the gate do the rest
+    const nx = THREE.MathUtils.clamp(player.pos.x + dir.x * speed * dt, inSchoolZ ? -27.6 : -5.6, inCafeZ ? (inRestZ ? restroom.x1 - .3 : 13.8) : 5.6);
     const nz = THREE.MathUtils.clamp(player.pos.z + dir.z * speed * dt, WALK_MIN, WALK_MAX);
     if (!blocked(nx, player.pos.z)) player.pos.x = nx;
     if (!blocked(player.pos.x, nz)) player.pos.z = nz;
@@ -3208,10 +3886,15 @@ function frame() {
     const near = Math.abs(player.pos.x - cafeDoor.x) < 2.2 && Math.abs(player.pos.z - cafeDoor.z) < 2.0;
     cafeDoor.open += ((near ? 1 : 0) - cafeDoor.open) * Math.min(1, dt * 5);
     for (const p of cafeDoor.panels) p.g.position.z = p.home + p.dir * cafeDoor.open * p.slide;
-    const inside = player.pos.x > cafeDoor.x + .2 ? (restroom.door && player.pos.x > restroom.x + .1 ? 'wc' : 'cafe') : '';
-    if (inside !== frame.inside) { frame.inside = inside; document.querySelector('.badge').innerHTML = inside === 'wc' ? 'お手洗い<small>Restroom · おてあらい</small>' : inside ? 'カフェ<small>Café · tap the menus to read them</small>' : '日本語学校の通り<small>First-person street test</small>'; }
   }
-  const onWalk = Math.abs(player.pos.x) > ROAD ? .15 : 0;
+  // classroom sliding doors
+  for (const d of slideDoors) { d.open += (d.target - d.open) * Math.min(1, dt * 5); d.g.position.z = d.home + d.dir * d.open * d.slide; }
+  const area = areaAt(player.pos.x, player.pos.z);
+  if (area !== frame.inside) { frame.inside = area; document.querySelector('.badge').innerHTML = AREA_BADGE[area]; }
+  // floor height under you: road, sidewalk, or the school's raised floor (eased, so the step up is smooth)
+  const floorY = schoolFloor(player.pos.x, player.pos.z) ? SCH.FL : Math.abs(player.pos.x) > ROAD ? .15 : 0;
+  frame.fy = frame.fy === undefined ? floorY : frame.fy + (floorY - frame.fy) * Math.min(1, dt * 12);
+  const onWalk = frame.fy;
   updateSeatPrompt();
   camera.position.set(player.pos.x, eyeY + onWalk + (seated || seatAnim ? 0 : Math.sin(player.bob) * .03), player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, 0);
@@ -3239,7 +3922,7 @@ addEventListener('resize', () => {
 });
 
 Promise.race([
-  Promise.all([document.fonts.load('900 64px "Zen Maru Gothic"', '日本語学校さくら書店カフェ止まれ'), document.fonts.load('700 64px "Zen Maru Gothic"', 'COFFEE'), document.fonts.load('600 64px "Klee One"', '日本語学校本日')]),
+  Promise.all([document.fonts.load('900 64px "Zen Maru Gothic"', '日本語学校さくら書店カフェ止まれ' + SCHOOL_GLYPHS), document.fonts.load('700 64px "Zen Maru Gothic"', 'COFFEE' + SCHOOL_GLYPHS), document.fonts.load('600 64px "Klee One"', '日本語学校本日' + SCHOOL_GLYPHS)]),
   new Promise(r => setTimeout(r, 4000))
 ]).then(() => {
   buildStreet();
