@@ -2,3 +2,5 @@
 .claude/settings.local.json
 .claude/live-refresh.sh
 lost-traveler/prototype/key.js
+
+lost-traveler/firstperson-backup/

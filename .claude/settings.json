@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./lost-traveler/firstperson/game.js)",
+      "Edit(./lost-traveler/firstperson/game.js)",
+      "Read(./lost-traveler/firstperson-backup/**)",
+      "Read(**/*.png)",
+      "Read(**/*.jpg)",
+      "Read(**/*.ttf)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */firstperson/src/*) node \"$CLAUDE_PROJECT_DIR/lost-traveler/firstperson/build.mjs\" --quiet ;; esac; exit 0",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
