@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- talk mic: answer Tanaka-sensei or the barista by speaking
 // When a conversation offers replies, the mic listens (after the other person has finished talking) and picks the reply
-// that sounds most like what you said. The 🎤 pill (top right, or M) turns it on/off; the choice is remembered.
+// that sounds most like what you said: it turns green, and the conversation goes on. The 🎤 pill (top right, or M) turns it on/off; the choice is remembered.
 // Uses the browser's speech recognition (Chrome, Edge, Safari). Hooks live in 365-talk-interaction.js.
 const TalkSR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let talkMicOn = true, talkRec = null, talkMicWait = 0, talkMicRetry = 0;
@@ -20,7 +20,9 @@ const talkMicEl = (() => {
 #talk .mk kbd{background:rgba(255,255,255,.18);color:#fff;font-size:11px}
 @keyframes talkMicPulse{50%{transform:scale(1.6);opacity:.6}}
 #talk .ms{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));right:16px;max-width:min(420px,80vw);text-align:right;font-size:14px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.6)}
-#talk .ch button.heard{transform:translateX(10px);outline:3px solid #D8433F}`;
+#talk .ch button.heard{transform:translateX(10px);background:#2E9E5B;color:#fff;box-shadow:0 0 0 3px #7FD9A2,0 8px 24px rgba(0,0,0,.3)}
+#talk .ch button.heard small{color:#E3F7EA}
+#talk .ch button.heard kbd{background:#fff;color:#2E9E5B}`;
   document.head.appendChild(st);
   const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.innerHTML = '<i></i><span></span><kbd>M</kbd>';
   const s = document.createElement('div'); s.className = 'ms'; s.setAttribute('aria-live', 'polite');
@@ -60,11 +62,12 @@ function talkMicListen(retry) {
   talkMicSay(talkMicT('listening'));
   rec.onresult = e => {
     const alts = [...e.results[0]].map(a => a.transcript), k = talkMicMatch(alts, talking.line.choices);
-    talkMicSay(talkMicT('heard') + ' 「' + alts[0] + '」' + (k < 0 ? ' ' + talkMicT('again') : ''));
-    if (k < 0) return;
-    rec.onend = null; talkRec = null; talkMicPaint();
+    if (k < 0) return talkMicSay(talkMicT('heard') + ' 「' + alts[0] + '」 ' + talkMicT('again'));
+    // you've already said it out loud: the reply turns green and the other person answers (your line isn't typed out again)
+    rec.onend = null; talkRec = null; talkMicPaint(); talkMicSay('');
     const btn = talkQ(`.ch button[data-k="${k}"]`); if (btn) btn.classList.add('heard');
-    setTimeout(() => { if (talkChoicesUp()) talkChoose(k); }, 450);
+    const c = talking.line.choices[k];
+    setTimeout(() => { if (talkChoicesUp()) c.next !== undefined ? talkGo(c.next) : talkChoose(k); }, 700);
   };
   rec.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {

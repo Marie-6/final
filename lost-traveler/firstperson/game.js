@@ -5412,7 +5412,7 @@ function addTalkSpot(x, z, reach, verb, script, y = 0) {
 //@src 3655-talk-mic.js
 // ---------------------------------------------------------------- talk mic: answer Tanaka-sensei or the barista by speaking
 // When a conversation offers replies, the mic listens (after the other person has finished talking) and picks the reply
-// that sounds most like what you said. The 🎤 pill (top right, or M) turns it on/off; the choice is remembered.
+// that sounds most like what you said: it turns green, and the conversation goes on. The 🎤 pill (top right, or M) turns it on/off; the choice is remembered.
 // Uses the browser's speech recognition (Chrome, Edge, Safari). Hooks live in 365-talk-interaction.js.
 const TalkSR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let talkMicOn = true, talkRec = null, talkMicWait = 0, talkMicRetry = 0;
@@ -5432,7 +5432,9 @@ const talkMicEl = (() => {
 #talk .mk kbd{background:rgba(255,255,255,.18);color:#fff;font-size:11px}
 @keyframes talkMicPulse{50%{transform:scale(1.6);opacity:.6}}
 #talk .ms{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));right:16px;max-width:min(420px,80vw);text-align:right;font-size:14px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.6)}
-#talk .ch button.heard{transform:translateX(10px);outline:3px solid #D8433F}`;
+#talk .ch button.heard{transform:translateX(10px);background:#2E9E5B;color:#fff;box-shadow:0 0 0 3px #7FD9A2,0 8px 24px rgba(0,0,0,.3)}
+#talk .ch button.heard small{color:#E3F7EA}
+#talk .ch button.heard kbd{background:#fff;color:#2E9E5B}`;
   document.head.appendChild(st);
   const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.innerHTML = '<i></i><span></span><kbd>M</kbd>';
   const s = document.createElement('div'); s.className = 'ms'; s.setAttribute('aria-live', 'polite');
@@ -5472,11 +5474,12 @@ function talkMicListen(retry) {
   talkMicSay(talkMicT('listening'));
   rec.onresult = e => {
     const alts = [...e.results[0]].map(a => a.transcript), k = talkMicMatch(alts, talking.line.choices);
-    talkMicSay(talkMicT('heard') + ' 「' + alts[0] + '」' + (k < 0 ? ' ' + talkMicT('again') : ''));
-    if (k < 0) return;
-    rec.onend = null; talkRec = null; talkMicPaint();
+    if (k < 0) return talkMicSay(talkMicT('heard') + ' 「' + alts[0] + '」 ' + talkMicT('again'));
+    // you've already said it out loud: the reply turns green and the other person answers (your line isn't typed out again)
+    rec.onend = null; talkRec = null; talkMicPaint(); talkMicSay('');
     const btn = talkQ(`.ch button[data-k="${k}"]`); if (btn) btn.classList.add('heard');
-    setTimeout(() => { if (talkChoicesUp()) talkChoose(k); }, 450);
+    const c = talking.line.choices[k];
+    setTimeout(() => { if (talkChoicesUp()) c.next !== undefined ? talkGo(c.next) : talkChoose(k); }, 700);
   };
   rec.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
@@ -5585,7 +5588,7 @@ scene.add(TANAKA3D.root);
 //@src 368-talk-barista.js
 // ---------------------------------------------------------------- talk: the barista at カフェ みなと's register
 // Order a coffee: hot or iced, for here or to go, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
-// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; give: true hands over the cup;
+// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; cup: 'here' (mug / glass) | 'togo' (paper / plastic cup); give: true hands over the cup;
 // brew: true (on a narrator line) sends her to the espresso machine; wait: true holds the line until she is back.
 VERBS.chumon = { r: [['注文', 'ちゅうもん'], ['する', '']], ro: 'chūmon suru', en: 'Order', zh: '点单' };
 const BARISTA_DAY1 = {
@@ -5612,8 +5615,8 @@ const BARISTA_DAY1 = {
         { jp: '{店内|てんない}で おねがいします。', ro: 'Tennai de onegaishimasu.', en: 'For here, please.', zh: '在店里用。', next: 'in' },
         { jp: '{持|も}ち{帰|かえ}りで おねがいします。', ro: 'Mochikaeri de onegaishimasu.', en: 'To go, please.', zh: '带走。', next: 'out' },
       ] },
-    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', next: 'pay' },
-    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', next: 'pay' },
+    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', cup: 'here', next: 'pay' },
+    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', cup: 'togo', next: 'pay' },
     { id: 'pay', by: 'narr', jp: '（{300|さんびゃく}{円|えん}を はらう）', ro: '(sanbyaku en o harau)', en: '(You pay 300 yen.)', zh: '（你付了300日元。）' },
     { jp: 'ちょうど いただきます。{少々|しょうしょう} お{待|ま}ちください。', ro: 'Chōdo itadakimasu. Shōshō omachi kudasai.', en: 'Exact change, thank you. One moment, please.', zh: '正好，收您钱了。请稍等。', act: 'nod' },
     { by: 'narr', jp: '……', ro: '', en: '(She makes your coffee.)', zh: '（她在给你做咖啡。）', brew: true, wait: true },
@@ -5625,7 +5628,7 @@ const BARISTA_DAY1 = {
 //@src 369-barista-3d.js
 // ---------------------------------------------------------------- the barista in 3D, behind カフェ みなと's register
 // She stands behind the レジ and looks up at you when you come near. Press E there to order (368-talk-barista.js):
-// she bows, turns to the machine to make your coffee, and hands you a hot paper cup or an iced coffee to drink (E).
+// she bows, turns to the machine to make your coffee, and hands you your coffee to drink (E): a mug or glass for here, a paper or plastic cup to go.
 const BARISTA3D = makePerson3d({
   skin: '#F8DCC6', hair: '#4A3128', hairStyle: 'bob', bun: true, lashes: true, lips: '#A85A55',
   shirt: '#F4F1EA', apron: '#4E3B31', pants: '#33363F', shoes: '#2E2A28', scale: .95,
@@ -5634,17 +5637,34 @@ people3d.barista = BARISTA3D;
 scene.add(BARISTA3D.root);
 BARISTA3D.root.visible = false;   // until the café is built
 
-// a coffee in your hand: a hot paper cup with a sleeve and lid, or an iced coffee with a straw
-function holdCoffee(kind) {
+// a coffee in your hand. For here: a white mug, or an iced coffee in a glass. To go: a hot paper cup with a sleeve and lid,
+// or an iced coffee in a plastic cup with a dome lid. w is the coffee, which goes down as you drink (350-things-you-can-do-sit-stand.js)
+function holdCoffee(kind, cup = 'togo') {
   if (holding) camera.remove(holding.g);
   if (!camera.parent) scene.add(camera);
   const g = new THREE.Group(); g.position.set(.2, -.2, -.45); camera.add(g);
+  const here = cup === 'here', coffee = std('#3A2116', { roughness: .2 });
   let w;
   if (kind === 'ice') {
-    mesh(new THREE.CylinderGeometry(.04, .032, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
-    w = mesh(new THREE.CylinderGeometry(.037, .031, .1, 16), std('#3A2116', { roughness: .2 }), 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
+    // a straight heavy glass for here, a tapered clear plastic cup to go
+    const r0 = here ? .039 : .04, r1 = here ? .036 : .032;
+    mesh(new THREE.CylinderGeometry(r0, r1, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: here ? .24 : .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    if (here) mesh(new THREE.CylinderGeometry(r1, r1, .012, 16), new THREE.MeshStandardMaterial({ color: '#DDEDF3', transparent: true, opacity: .5, roughness: .05 }), 0, -.054, 0, g, false);   // thick glass bottom
+    w = mesh(new THREE.CylinderGeometry(r0 - .003, r1 - .001, .1, 16), coffee, 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
     for (let i = 0; i < 4; i++) mesh(new THREE.BoxGeometry(.018, .018, .018), new THREE.MeshStandardMaterial({ color: '#F2FAFF', transparent: true, opacity: .6, roughness: .05 }), (i % 2 - .5) * .025, .03 - (i > 1) * .02, (i > 1 ? .5 : -.5) * .015, g, false).rotation.set(i, i * 2, 0);
-    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std('#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+    if (!here) {   // dome lid
+      const dome = new THREE.SphereGeometry(.041, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, .55, 1);
+      mesh(dome, new THREE.MeshStandardMaterial({ color: '#F2F8FA', transparent: true, opacity: .22, roughness: .05, depthWrite: false }), 0, .06, 0, g, false);
+    }
+    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std(here ? '#E8E2D6' : '#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+  } else if (here) {
+    // a white ceramic mug with a handle, coffee inside
+    const white = std('#F6F3EE', { roughness: .35 });
+    mesh(new THREE.CylinderGeometry(.042, .04, .1, 20, 1, true), new THREE.MeshStandardMaterial({ color: '#F6F3EE', roughness: .35, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    mesh(new THREE.CylinderGeometry(.04, .04, .008, 20), white, 0, -.046, 0, g, false);   // bottom
+    mesh(new THREE.TorusGeometry(.044, .0042, 8, 24), white, 0, .05, 0, g, false).rotation.x = Math.PI / 2;   // rim
+    const handle = mesh(new THREE.TorusGeometry(.024, .0075, 8, 16, Math.PI), white, .042, .002, 0, g, false); handle.rotation.z = -Math.PI / 2;
+    w = mesh(new THREE.CylinderGeometry(.039, .037, .085, 20), coffee, 0, -.042, 0, g, false); w.geometry.translate(0, .0425, 0);
   } else {
     mesh(new THREE.CylinderGeometry(.04, .031, .115, 16), std('#F7F3EC', { roughness: .8 }), 0, 0, 0, g, false);
     mesh(new THREE.CylinderGeometry(.0385, .034, .045, 16), std('#9A6B45', { roughness: .9 }), 0, -.008, 0, g, false);   // sleeve
@@ -5666,7 +5686,7 @@ function placeBarista() {
   P.root.position.set(home[0], R.floor, home[1]); P.root.rotation.y = home[2]; P.root.visible = true;
   addTalkSpot(R.x - .9, R.z + .3, 1.5, 'chumon', BARISTA_DAY1);
   P.speed = 1.3;
-  const S = { line: null, order: 'hot', near: false, act: null, give: false, brew: 0, served: false };
+  const S = { line: null, order: 'hot', cup: 'togo', near: false, act: null, give: false, brew: 0, served: false };
   const arrived = () => !P.path.length && Math.hypot(P.target.x - P.root.position.x, P.target.y - P.root.position.z) < .03;
   people3dStage.push(dt => {
     const T = talking && talking.script.who === 'barista' ? talking : null;
@@ -5674,6 +5694,7 @@ function placeBarista() {
       S.line = T.line;
       const L = T.line, by = L.by || 'npc';
       if (L.order) S.order = L.order;
+      if (L.cup) S.cup = L.cup;
       if (L.brew) { walk(machine); S.brew = 1; } else if (by === 'npc' && !S.served) walk(home);
       if (by === 'npc') { P.face = L.face || ''; S.act = L.act || null; S.give = !!L.give; }
       else if (by === 'me') P.face = '';
@@ -5681,7 +5702,7 @@ function placeBarista() {
     // gestures wait until she is back at the register, so she never bows or reaches out mid-walk
     if (S.act && arrived()) {
       P.act(S.act); S.act = null;
-      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order), 900); }   // as her hands come forward
+      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order, S.cup), 900); }   // as her hands come forward
     }
     // making the coffee: walk to the machine, work at it for a moment, then turn around and serve you right there
     if (S.brew === 1 && arrived()) { S.brew = 2; S.t = 0; P.act('offer'); }

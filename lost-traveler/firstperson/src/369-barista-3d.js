@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- the barista in 3D, behind カフェ みなと's register
 // She stands behind the レジ and looks up at you when you come near. Press E there to order (368-talk-barista.js):
-// she bows, turns to the machine to make your coffee, and hands you a hot paper cup or an iced coffee to drink (E).
+// she bows, turns to the machine to make your coffee, and hands you your coffee to drink (E): a mug or glass for here, a paper or plastic cup to go.
 const BARISTA3D = makePerson3d({
   skin: '#F8DCC6', hair: '#4A3128', hairStyle: 'bob', bun: true, lashes: true, lips: '#A85A55',
   shirt: '#F4F1EA', apron: '#4E3B31', pants: '#33363F', shoes: '#2E2A28', scale: .95,
@@ -9,17 +9,34 @@ people3d.barista = BARISTA3D;
 scene.add(BARISTA3D.root);
 BARISTA3D.root.visible = false;   // until the café is built
 
-// a coffee in your hand: a hot paper cup with a sleeve and lid, or an iced coffee with a straw
-function holdCoffee(kind) {
+// a coffee in your hand. For here: a white mug, or an iced coffee in a glass. To go: a hot paper cup with a sleeve and lid,
+// or an iced coffee in a plastic cup with a dome lid. w is the coffee, which goes down as you drink (350-things-you-can-do-sit-stand.js)
+function holdCoffee(kind, cup = 'togo') {
   if (holding) camera.remove(holding.g);
   if (!camera.parent) scene.add(camera);
   const g = new THREE.Group(); g.position.set(.2, -.2, -.45); camera.add(g);
+  const here = cup === 'here', coffee = std('#3A2116', { roughness: .2 });
   let w;
   if (kind === 'ice') {
-    mesh(new THREE.CylinderGeometry(.04, .032, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
-    w = mesh(new THREE.CylinderGeometry(.037, .031, .1, 16), std('#3A2116', { roughness: .2 }), 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
+    // a straight heavy glass for here, a tapered clear plastic cup to go
+    const r0 = here ? .039 : .04, r1 = here ? .036 : .032;
+    mesh(new THREE.CylinderGeometry(r0, r1, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: here ? .24 : .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    if (here) mesh(new THREE.CylinderGeometry(r1, r1, .012, 16), new THREE.MeshStandardMaterial({ color: '#DDEDF3', transparent: true, opacity: .5, roughness: .05 }), 0, -.054, 0, g, false);   // thick glass bottom
+    w = mesh(new THREE.CylinderGeometry(r0 - .003, r1 - .001, .1, 16), coffee, 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
     for (let i = 0; i < 4; i++) mesh(new THREE.BoxGeometry(.018, .018, .018), new THREE.MeshStandardMaterial({ color: '#F2FAFF', transparent: true, opacity: .6, roughness: .05 }), (i % 2 - .5) * .025, .03 - (i > 1) * .02, (i > 1 ? .5 : -.5) * .015, g, false).rotation.set(i, i * 2, 0);
-    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std('#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+    if (!here) {   // dome lid
+      const dome = new THREE.SphereGeometry(.041, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, .55, 1);
+      mesh(dome, new THREE.MeshStandardMaterial({ color: '#F2F8FA', transparent: true, opacity: .22, roughness: .05, depthWrite: false }), 0, .06, 0, g, false);
+    }
+    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std(here ? '#E8E2D6' : '#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+  } else if (here) {
+    // a white ceramic mug with a handle, coffee inside
+    const white = std('#F6F3EE', { roughness: .35 });
+    mesh(new THREE.CylinderGeometry(.042, .04, .1, 20, 1, true), new THREE.MeshStandardMaterial({ color: '#F6F3EE', roughness: .35, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    mesh(new THREE.CylinderGeometry(.04, .04, .008, 20), white, 0, -.046, 0, g, false);   // bottom
+    mesh(new THREE.TorusGeometry(.044, .0042, 8, 24), white, 0, .05, 0, g, false).rotation.x = Math.PI / 2;   // rim
+    const handle = mesh(new THREE.TorusGeometry(.024, .0075, 8, 16, Math.PI), white, .042, .002, 0, g, false); handle.rotation.z = -Math.PI / 2;
+    w = mesh(new THREE.CylinderGeometry(.039, .037, .085, 20), coffee, 0, -.042, 0, g, false); w.geometry.translate(0, .0425, 0);
   } else {
     mesh(new THREE.CylinderGeometry(.04, .031, .115, 16), std('#F7F3EC', { roughness: .8 }), 0, 0, 0, g, false);
     mesh(new THREE.CylinderGeometry(.0385, .034, .045, 16), std('#9A6B45', { roughness: .9 }), 0, -.008, 0, g, false);   // sleeve
@@ -41,7 +58,7 @@ function placeBarista() {
   P.root.position.set(home[0], R.floor, home[1]); P.root.rotation.y = home[2]; P.root.visible = true;
   addTalkSpot(R.x - .9, R.z + .3, 1.5, 'chumon', BARISTA_DAY1);
   P.speed = 1.3;
-  const S = { line: null, order: 'hot', near: false, act: null, give: false, brew: 0, served: false };
+  const S = { line: null, order: 'hot', cup: 'togo', near: false, act: null, give: false, brew: 0, served: false };
   const arrived = () => !P.path.length && Math.hypot(P.target.x - P.root.position.x, P.target.y - P.root.position.z) < .03;
   people3dStage.push(dt => {
     const T = talking && talking.script.who === 'barista' ? talking : null;
@@ -49,6 +66,7 @@ function placeBarista() {
       S.line = T.line;
       const L = T.line, by = L.by || 'npc';
       if (L.order) S.order = L.order;
+      if (L.cup) S.cup = L.cup;
       if (L.brew) { walk(machine); S.brew = 1; } else if (by === 'npc' && !S.served) walk(home);
       if (by === 'npc') { P.face = L.face || ''; S.act = L.act || null; S.give = !!L.give; }
       else if (by === 'me') P.face = '';
@@ -56,7 +74,7 @@ function placeBarista() {
     // gestures wait until she is back at the register, so she never bows or reaches out mid-walk
     if (S.act && arrived()) {
       P.act(S.act); S.act = null;
-      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order), 900); }   // as her hands come forward
+      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order, S.cup), 900); }   // as her hands come forward
     }
     // making the coffee: walk to the machine, work at it for a moment, then turn around and serve you right there
     if (S.brew === 1 && arrived()) { S.brew = 2; S.t = 0; P.act('offer'); }

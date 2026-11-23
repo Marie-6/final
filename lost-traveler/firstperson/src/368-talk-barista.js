@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- talk: the barista at カフェ みなと's register
 // Order a coffee: hot or iced, for here or to go, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
-// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; give: true hands over the cup;
+// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; cup: 'here' (mug / glass) | 'togo' (paper / plastic cup); give: true hands over the cup;
 // brew: true (on a narrator line) sends her to the espresso machine; wait: true holds the line until she is back.
 VERBS.chumon = { r: [['注文', 'ちゅうもん'], ['する', '']], ro: 'chūmon suru', en: 'Order', zh: '点单' };
 const BARISTA_DAY1 = {
@@ -27,8 +27,8 @@ const BARISTA_DAY1 = {
         { jp: '{店内|てんない}で おねがいします。', ro: 'Tennai de onegaishimasu.', en: 'For here, please.', zh: '在店里用。', next: 'in' },
         { jp: '{持|も}ち{帰|かえ}りで おねがいします。', ro: 'Mochikaeri de onegaishimasu.', en: 'To go, please.', zh: '带走。', next: 'out' },
       ] },
-    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', next: 'pay' },
-    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', next: 'pay' },
+    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', cup: 'here', next: 'pay' },
+    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', cup: 'togo', next: 'pay' },
     { id: 'pay', by: 'narr', jp: '（{300|さんびゃく}{円|えん}を はらう）', ro: '(sanbyaku en o harau)', en: '(You pay 300 yen.)', zh: '（你付了300日元。）' },
     { jp: 'ちょうど いただきます。{少々|しょうしょう} お{待|ま}ちください。', ro: 'Chōdo itadakimasu. Shōshō omachi kudasai.', en: 'Exact change, thank you. One moment, please.', zh: '正好，收您钱了。请稍等。', act: 'nod' },
     { by: 'narr', jp: '……', ro: '', en: '(She makes your coffee.)', zh: '（她在给你做咖啡。）', brew: true, wait: true },
