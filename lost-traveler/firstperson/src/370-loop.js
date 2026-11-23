@@ -75,6 +75,7 @@ function frame() {
   placeSun(player.pos.z - 15);
   sky.material.uniforms.time.value = t;
   updateLife(dt);
+  updatePeople3d(dt);
   if (train) updateTrain(dt);
   const on = Math.sin(t * 6) > 0;
   for (const m of blinkers) m.emissiveIntensity = (on ? 1 : .15) * (TIMES[current].night ? 2.2 : 1.2);
@@ -102,6 +103,7 @@ Promise.race([
   setTime(params.get('t') && TIMES[params.get('t')] ? params.get('t') : 'hiru');
   const c = params.get('cam');
   if (c) { const [x, z, yaw, pitch, y = 0] = c.split(',').map(Number); player.pos.set(x, 0, z); player.yaw = yaw; player.pitch = pitch; player.fy = floorAt(x, z, y) ?? groundY(x, z); }
+  else if (!params.has('bench')) player.pos.set(0, 0, 27), player.yaw = 0, player.pitch = .05, player.fy = floorAt(player.pos.x, player.pos.z, 0) ?? groundY(player.pos.x, player.pos.z);   // you start in the street, school on the left, café on the right
   else if (START.seat) {
     // Day 1 opens with you waking up on the bench outside みなと駅, looking up toward the station sign
     const s = START.seat;

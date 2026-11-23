@@ -37,6 +37,14 @@ The live-refresh server serves `lost-traveler/` on port 8000.
 | 330–360 | controls, reading signs, actions (sit/pour/open…), vending machine interaction |
 | 370 | main loop and startup |
 
+## Adding new content
+
+- One thing per file (one place, one system, one interaction). New content goes in NEW files, never appended to existing ones.
+- New scene or walk-in place (e.g. konbini, park): `XXX-<name>-textures.js` + `XXX-build-<name>.js`, numbered before 260. Then add ONE line in `260-build-everything.js` to call it.
+- New interaction (e.g. buying at the konbini): `XXX-<name>-interaction.js`, numbered between 330 and 370. Only add a short hook in shared files.
+- Split a file when it grows past ~600 lines, along a natural boundary (e.g. textures vs. building). Never cut a single function in half just to hit a number.
+- Before creating files, tell me the new file name(s) and which shared files get a one-line hook.
+
 ## Working rules (save tokens)
 
 1. Find code with `grep -n` across `src/` first, then read only the lines you need (`sed -n` or a ranged Read). Never read a whole folder.
