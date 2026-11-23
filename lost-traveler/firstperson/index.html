@@ -477,6 +477,9 @@ const hint = {
   sakurasou: { ruby: [['さくら', ''], ['荘', 'そう']], ro: 'sakura-sō', en: 'Sakura-sō (the guesthouse)', zh: '樱花庄（民宿）' },
   tomare: { ruby: [['止', 'と'], ['まれ', '']], ro: 'tomare', en: 'Stop', zh: '停' },
   osusume: { ruby: [['本日', 'ほんじつ'], ['の', ''], ['おすすめ', '']], ro: 'honjitsu no osusume', en: "Today's recommendation", zh: '今日推荐' },
+  churin: { ruby: [['駐輪場', 'ちゅうりんじょう']], ro: 'chūrinjō', en: 'Bicycle parking', zh: '自行车停车场' },
+  yakitori: { ruby: [['やきとり', '']], ro: 'yakitori', en: 'Yakitori (grilled chicken on skewers)', zh: '烤鸡肉串' },
+  laundry: { ruby: [['コインランドリー', ''], ['24', ''], ['時間', 'じかん']], ro: 'koin randorī nijūyo-jikan', en: 'Coin laundry, open 24 hours', zh: '24小时自助洗衣店' },
   konbini: { ruby: [['コンビニ', ''], ['24', ''], ['時間', 'じかん']], ro: 'konbini nijūyo-jikan', en: 'Convenience store, open 24 hours', zh: '24小时便利店' },
   ramen: { ruby: [['ラーメン', '']], ro: 'rāmen', en: 'Ramen', zh: '拉面' },
   fumikiri: { ruby: [['踏切', 'ふみきり']], ro: 'fumikiri', en: 'Railroad crossing', zh: '铁路道口' },
@@ -1349,18 +1352,7 @@ function vending(side, z) {
 
 function bike(side, z, color) {
   if (!claim(side, 'wall', z - .35, z + .35)) return;
-  const g = group(side * 5.3, .15, z, Math.PI / 2 + range(-.12, .12));
-  const tire = std('#2B2B33'), frame = metal(color), m = metal('#C3C7CE');
-  for (const s of [-.52, .52]) {
-    const w = mesh(new THREE.TorusGeometry(.32, .035, 6, 22), tire, s, .34, 0, g);
-    for (let i = 0; i < 6; i++) { const sp = cyl(.006, .006, .62, m, s, .34, 0, 3, g, false); sp.rotation.z = i * Math.PI / 6; }
-  }
-  const tube = (l, x, y, r) => { const t = cyl(.025, .025, l, frame, x, y, 0, 6, g); t.rotation.z = r; };
-  tube(.85, .05, .55, 1.05); tube(.6, -.25, .62, .25); tube(.7, .45, .66, -.3); tube(.5, -.36, .36, 1.2);
-  box(.26, .06, .12, tire, -.32, .97, 0, g);
-  box(.06, .06, .52, m, .38, 1.02, 0, g);
-  box(.34, .26, .36, metal('#A9AEB6'), .66, .9, 0, g);
-  box(.5, .04, .2, frame, -.55, .7, 0, g, false);
+  bikeAt(side * 5.3, z, Math.PI / 2 + range(-.12, .12), color);
 }
 
 function scooter(side, z, color) {
@@ -1389,8 +1381,8 @@ function cone(side, z) {
 function crates(side, z) {
   if (!claim(side, 'wall', z - .5, z + .5)) return;
   const col = pick(['#2F6FB8', '#D8433F', '#F2C14E', '#3C9D5D']);
-  for (let i = 0; i < 3; i++) box(.48, .3, .36, std(col), side * 5.55, .3 + i * .31, z + (i === 2 ? .1 : 0) + range(-.03, .03));
-  box(.48, .3, .36, std(col), side * 5.55, .3, z + .4);
+  for (let i = 0; i < 3; i++) box(.48, .3, .36, crateMat(col), side * 5.55, .3 + i * .31, z + (i === 2 ? .1 : 0) + range(-.03, .03));
+  box(.48, .3, .36, crateMat(col), side * 5.55, .3, z + .4);
 }
 
 function postbox(side, z) {
@@ -3143,6 +3135,266 @@ function ground() {
   const base = mesh(new THREE.PlaneGeometry(1200, 1200), std('#8E918C'), 0, -.03, -100, scene, false); base.rotation.x = -Math.PI / 2;
 }
 
+// ================================================================ the elevated railway (高架橋) and the blocks behind the street
+// All of this runs inside isolated(), so it never changes the street's random numbers.
+const VIA = { z: -72, x0: -310, x1: 310, piers: [] };
+for (const s of [-1, 1]) for (let x = 7.2; x < 300; x += 15) VIA.piers.push(s * x);
+
+// cast concrete: soft blotches, board-form joints, tie holes, rain streaks running down from the top
+let _concTex;
+function concreteTex() {
+  return _concTex ??= canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 30; i++) {
+      const x = rand() * w, y = rand() * h, r = 30 + rand() * 100, gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, rand() < .6 ? 'rgba(90,86,80,.08)' : 'rgba(255,255,255,.1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    speckle(g, w, h, .06, 9000);
+    g.fillStyle = 'rgba(70,66,60,.16)'; for (let y = 0; y < h; y += 128) g.fillRect(0, y, w, 2);
+    g.fillStyle = 'rgba(70,66,60,.1)'; for (let y = 0; y < h; y += 128) for (let x = ((y / 128) % 2) * 128; x < w; x += 256) g.fillRect(x, y, 2, 128);
+    g.fillStyle = 'rgba(40,40,40,.3)'; for (let y = 64; y < h; y += 128) for (let x = 64; x < w; x += 128) { g.beginPath(); g.arc(x, y, 2.6, 0, 7); g.fill(); }
+    for (let i = 0; i < 50; i++) {
+      const x = rand() * w, len = h * (.12 + rand() * .6), gr = g.createLinearGradient(0, 0, 0, len);
+      gr.addColorStop(0, 'rgba(55,52,48,.22)'); gr.addColorStop(1, 'rgba(55,52,48,0)');
+      g.fillStyle = gr; g.fillRect(x, 0, 1 + rand() * 7, len);
+    }
+  });
+}
+const concCache = new Map();
+function concMat(color, rx, ry) {
+  const k = color + rx.toFixed(2) + ry.toFixed(2);
+  if (!concCache.has(k)) {
+    const t = concreteTex().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+    concCache.set(k, new THREE.MeshStandardMaterial({ color, map: t, roughness: .92 }));
+  }
+  return concCache.get(k);
+}
+// a box whose bottom face is pulled in: the tapered head on top of a pier
+function taperBox(w, h, d, kx, kz) {
+  const geo = new THREE.BoxGeometry(w, h, d), p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) if (p.getY(i) < 0) { p.setX(i, p.getX(i) * kx); p.setZ(i, p.getZ(i) * kz); }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function viaduct(rail) {
+  const L = VIA.x1 - VIA.x0, C = '#CBCDCC';
+  const girder = concMat(C, L / 8, .3), under = concMat('#AEB4BA', L / 8, 1.4), light = concMat(shade(C, 1.06), L / 8, .08);
+  const steel = metal('#8C929A'), dark = metal('#4E535B');
+  // the main girder (the station signs hang on its faces over the road), the drip edge and the ribs underneath
+  box(L, 1.3, 6, [girder, girder, girder, under, girder, girder], 0, 7.4, 0, rail);
+  box(L, .25, 6.5, light, 0, 8.17, 0, rail);
+  for (const z of [-1.7, 1.7]) box(L, .4, .55, concMat('#B4B9BE', L / 8, .1), 0, 6.55, z, rail, false);
+  // parapet walls with a cap, then see-through sound barrier panels on steel posts
+  const glass = new THREE.MeshStandardMaterial({ color: '#C9DCE2', transparent: true, opacity: .42, roughness: .12, metalness: .1, depthWrite: false });
+  for (const s of [-1, 1]) {
+    box(L, 1.1, .22, concMat(C, L / 8, .28), 0, 8.85, s * 3.1, rail);
+    box(L, .1, .38, light, 0, 9.45, s * 3.1, rail, false);
+    mesh(new THREE.BoxGeometry(L, 1.1, .03), glass, 0, 10.07, s * 3.1, rail, false);
+    for (let x = VIA.x0 + 1; x < VIA.x1; x += 2.5) box(.1, 1.25, .1, steel, x, 10.12, s * 3.1, rail, false);
+    box(L, .09, .14, steel, 0, 10.72, s * 3.1, rail, false);
+    box(L, .08, .12, steel, 0, 9.55, s * 3.1, rail, false);
+    // a cable trough along the outside of the parapet
+    box(L, .22, .22, concMat(shade(C, .8), L / 8, .05), 0, 8.0, s * 3.36, rail, false);
+  }
+
+  // piers: an octagonal column on a footing, a tapered head, bearing pads, a cross beam, and a drain pipe down the side
+  const colGeo = new THREE.CylinderGeometry(1, 1, 5.1, 8); colGeo.rotateY(Math.PI / 8);
+  const capGeo = taperBox(2.1, 1.1, 5.7, .78, .45);
+  const colMat = concMat(C, 1.2, 1.1), capMat = concMat(shade(C, 1.02), .6, .3), foot = concMat(shade(C, .82), .5, .1);
+  const pipe = std('#6E737A', { roughness: .5, metalness: .4 });
+  VIA.piers.forEach((x, i) => {
+    mesh(colGeo, colMat, x, 2.55, 0, rail).scale.set(.82, 1, 1.22);
+    box(2.4, .3, 3.4, foot, x, .15, 0, rail);
+    mesh(capGeo, capMat, x, 5.65, 0, rail);
+    for (const z of [-1.7, 1.7]) box(.6, .15, .7, dark, x, 6.27, z, rail, false);
+    box(.5, .4, 6, concMat(shade(C, .88), .2, .1), x, 6.55, 0, rail, false);
+    const pz = (i % 2 ? -1 : 1) * 1.2;
+    cyl(.075, .075, 6.1, pipe, x + .32, 3.1, pz, 8, rail, false);
+    for (const y of [1.2, 2.8, 4.4]) box(.22, .05, .1, dark, x + .32, y, pz - Math.sign(pz) * .05, rail, false);
+    box(.16, .16, .7, pipe, x + .32, 6.15, pz * .8, rail, false);
+    box(.6, .15, .3, pipe, x + .32, .07, pz + Math.sign(pz) * .25, rail, false);
+  });
+  // fluorescent lights under the deck over both sidewalks
+  const tube = glowMat(null, null, .4, 2.4, { color: '#F4F6F8', emissive: 0xeef4ff });
+  for (const x of [-4.8, 4.8]) for (const z of [-1.7, 0, 1.7]) { box(.2, .08, 1.3, std('#C9CDD2'), x, 6.71, z, rail, false); box(.1, .04, 1.2, tube, x, 6.65, z, rail, false); }
+  for (const x of [-4.8, 4.8]) lampPositions.push(new THREE.Vector3(x, 6.3, VIA.z));
+
+  // overhead wires: masts on both edges every 30 m, a cross beam, a messenger wire with droppers holding the contact wire
+  for (let x = -277.2; x < 300; x += 30) {
+    for (const s of [-1, 1]) { box(.26, 5.2, .26, steel, x, 10.9, s * 3.5, rail, false); box(.18, .18, .5, steel, x, 8.7, s * 3.3, rail, false); }
+    box(.2, .34, 7.4, steel, x, 13.35, 0, rail, false);
+    box(.05, .55, .05, dark, x, 12.9, 0, rail, false);
+    cyl(.09, .09, .22, std('#7A4A3A', { roughness: .4 }), x, 12.6, 0, 8, rail, false);
+  }
+  box(L, .03, .03, wireMat, 0, 12.45, 0, rail, false);
+  box(L, .025, .025, wireMat, 0, 11.9, 0, rail, false);
+  for (const s of [-1, 1]) box(L, .035, .035, wireMat, 0, 13.5, s * 3.5, rail, false);
+  for (let x = VIA.x0 + 2.5; x < VIA.x1; x += 5) box(.015, .55, .015, wireMat, x, 12.17, 0, rail, false);
+}
+
+// ---------------------------------------------------------------- under the tracks (高架下): bikes, a yakitori bar, a laundromat, storage
+let _laneTex, _crateTex = {};
+function laneMat(len) {
+  _laneTex ??= canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#6F727C'; g.fillRect(0, 0, w, h); speckle(g, w, h, .08, 5000); for (let i = 0; i < 5; i++) { g.strokeStyle = 'rgba(30,30,40,.25)'; g.lineWidth = 1.5; g.beginPath(); let x = rand() * w, y = rand() * h; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (rand() - .5) * 40; y += rand() * 30; g.lineTo(x, y); } g.stroke(); } });
+  const t = _laneTex.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(len / 6, 2);
+  return std('#ffffff', { map: t, roughness: .95 });
+}
+// plastic beer crates: ribs, a hand hole and bottle caps showing on top
+function crateMat(color) {
+  return _crateTex[color] ??= std('#ffffff', { roughness: .55, map: canvasTex(128, 96, (g, w, h) => {
+    g.fillStyle = color; g.fillRect(0, 0, w, h);
+    g.fillStyle = shade(color, .72); for (let x = 6; x < w; x += 20) g.fillRect(x, 10, 5, h - 16);
+    g.fillRect(0, h - 8, w, 8); g.fillRect(0, 0, w, 6);
+    g.fillStyle = shade(color, 1.15); g.fillRect(0, 6, w, 4);
+    g.fillStyle = '#1E1E24'; g.beginPath(); g.roundRect(w * .32, 13, w * .36, 14, 7); g.fill();
+    g.fillStyle = '#FFFFFF'; g.font = '900 15px "Zen Maru Gothic"'; g.textAlign = 'center'; g.fillText('みなとビール', w / 2, h * .66);
+  }) });
+}
+function bikeAt(x, z, ry, color) {
+  const g = group(x, .15, z, ry);
+  const tire = std('#2B2B33'), frame = metal(color), m = metal('#C3C7CE');
+  for (const s of [-.52, .52]) {
+    mesh(new THREE.TorusGeometry(.32, .035, 6, 22), tire, s, .34, 0, g);
+    for (let i = 0; i < 6; i++) { const sp = cyl(.006, .006, .62, m, s, .34, 0, 3, g, false); sp.rotation.z = i * Math.PI / 6; }
+  }
+  const tube = (l, x, y, r) => { const t = cyl(.025, .025, l, frame, x, y, 0, 6, g); t.rotation.z = r; };
+  tube(.85, .05, .55, 1.05); tube(.6, -.25, .62, .25); tube(.7, .45, .66, -.3); tube(.5, -.36, .36, 1.2);
+  box(.26, .06, .12, tire, -.32, .97, 0, g);
+  box(.06, .06, .52, m, .38, 1.02, 0, g);
+  box(.34, .26, .36, metal('#A9AEB6'), .66, .9, 0, g);
+  box(.5, .04, .2, frame, -.55, .7, 0, g, false);
+  return g;
+}
+// the front of a shop built under the tracks, facing the street: a board on top, the inside lit at night
+function guardFront(kind) {
+  const W = 512, H = 448, draw = night => (g, w, h) => {
+    g.fillStyle = night ? '#000' : '#3A2C26'; g.fillRect(0, 0, w, h);
+    if (kind === 'yakitori') {
+      g.fillStyle = night ? '#000' : '#2A1F1A'; g.fillRect(0, 0, w, 96);
+      g.fillStyle = night ? '#FFE9C0' : '#F6EBD8'; g.font = '900 64px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('やきとり 鳥まる', w / 2, 52);
+      // the open front: a warm room, a counter and stools, red noren on top
+      g.fillStyle = night ? '#C8823A' : '#8C5A30'; g.fillRect(30, 120, w - 60, h - 140);
+      g.fillStyle = night ? '#FFD08A' : '#C9935A'; g.fillRect(40, 150, w - 80, 120);
+      g.fillStyle = night ? '#3A1E10' : '#4A2E1E'; g.fillRect(30, 300, w - 60, 26);
+      g.fillStyle = night ? '#1A0E08' : '#5E3A26'; g.fillRect(30, 326, w - 60, h - 346);
+      for (let x = 70; x < w - 40; x += 74) { g.fillStyle = night ? '#100804' : '#2A1A12'; g.fillRect(x, 360, 34, 10); g.fillRect(x + 14, 370, 6, h - 390); }
+      for (let i = 0; i < 6; i++) { g.fillStyle = night ? '#902018' : '#B8322B'; g.fillRect(40 + i * ((w - 80) / 6), 120, (w - 80) / 6 - 6, 96); }
+      g.fillStyle = night ? '#FFE0D0' : '#FFFFFF'; g.font = '900 48px "Zen Maru Gothic"'; ['焼', '鳥', '・', '酒', '処', '・'].forEach((t, i) => g.fillText(t, 40 + (i + .5) * ((w - 80) / 6), 172));
+    } else {
+      g.fillStyle = night ? '#000' : '#2F6FB8'; g.fillRect(0, 0, w, 96);
+      g.fillStyle = night ? '#E8F4FF' : '#FFFFFF'; g.font = '900 50px "Zen Maru Gothic"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('コインランドリー', w / 2, 42);
+      g.font = '700 22px "Zen Maru Gothic"'; g.fillText('COIN LAUNDRY  24H', w / 2, 80);
+      // a glass front with rows of round washer doors inside
+      g.fillStyle = night ? '#E8F0F4' : '#9DB3C2'; g.fillRect(24, 112, w - 48, h - 124);
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) {
+        const x = 70 + c * 93, y = 190 + r * 120;
+        g.fillStyle = night ? '#FFFFFF' : '#ECEFF2'; g.fillRect(x - 40, y - 52, 80, 104);
+        g.fillStyle = night ? '#9FB4C8' : '#5E7387'; g.beginPath(); g.arc(x, y + 6, 28, 0, 7); g.fill();
+        g.fillStyle = night ? '#C9DAE8' : '#8FA6BA'; g.beginPath(); g.arc(x - 8, y - 2, 10, 0, 7); g.fill();
+      }
+      g.fillStyle = night ? '#000' : '#5A6470'; for (let x = 24; x < w; x += (w - 48) / 4) g.fillRect(x, 112, 6, h - 124);
+    }
+  };
+  return glowMat(canvasTex(W, H, draw(false)), canvasTex(W, H, draw(true)), 0, 1.1);
+}
+
+function underTracks() {
+  const z = VIA.z, steel = metal('#7E858E');
+  const chain = canvasTex(128, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(128,134,142,1)'; g.lineWidth = 2; for (let i = -h; i < w; i += 12) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i + h, 0); g.lineTo(i, h); g.stroke(); } });
+  const fenceMat = len => { const t = chain.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(len / 1.2, 1.5); return std('#ffffff', { map: t, transparent: true, alphaTest: .4, side: THREE.DoubleSide }); };
+  const fence = (x0, x1, fz, hgt = 1.8) => {
+    const len = Math.abs(x1 - x0), f = mesh(new THREE.PlaneGeometry(len, hgt), fenceMat(len), (x0 + x1) / 2, hgt / 2 + .02, fz, scene, false);
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1) + .01; x += len / Math.max(1, Math.round(len / 2.5))) box(.06, hgt + .05, .06, steel, x, hgt / 2, fz, scene, false);
+    box(len, .05, .05, steel, (x0 + x1) / 2, hgt, fz, scene, false);
+    return f;
+  };
+  const wallC = std('#D9D2C4'), shutter = std('#ffffff', { map: (() => { const t = shutterTex.clone(); t.needsUpdate = true; t.repeat.set(2, 1.5); return t; })(), roughness: .5, metalness: .3 });
+  const lantern = glowMat(null, null, .25, 2.6, { color: '#D8402F', emissive: 0xff5a2a });
+  for (const s of [-1, 1]) {
+    // the lane under the tracks and its white edge lines
+    const lane = mesh(new THREE.PlaneGeometry(300, 12), laneMat(300), s * 156, .012, z, scene, false); lane.rotation.x = -Math.PI / 2;
+    for (const dz of [-5.4, 5.4]) { const l = mesh(new THREE.PlaneGeometry(300, .12), std('#E8E6DE'), s * 156, .016, z + dz, scene, false); l.rotation.x = -Math.PI / 2; }
+    for (let k = 0; k < 19; k++) {
+      const a = 7.2 + k * 15, b = a + 15, x0 = s * (a + .9), x1 = s * (b - .9), xm = s * (a + 7.5);
+      if (k === 0) {
+        // 駐輪場: two rows of bikes in racks, a sign on the pier facing the street
+        for (const dz of [-1.5, 1.5]) {
+          box(12.6, .06, .06, steel, xm, .5, z + dz * .55, scene, false);
+          for (let x = a + 1.4; x < b - 1.2; x += .78) if (rand() < .75) bikeAt(s * x, z + dz, Math.PI / 2 + (dz < 0 ? Math.PI : 0) + range(-.08, .08), pick(['#7FC6B5', '#E28FA8', '#E9C46A', '#9BB3D6', '#D94F4F', '#B8B8B8', '#3A3A40', '#F2F2EE']));
+        }
+        const strip = mesh(new THREE.PlaneGeometry(13, 5.6), std('#7FA08A', { roughness: .9 }), xm, .014, z, scene, false); strip.rotation.x = -Math.PI / 2;
+        sign({ lines: [{ t: '駐輪場', size: .42 }, { t: 'BICYCLE PARKING', size: .14, weight: 700 }], top: .4, w: 1.9, h: .95, bg: '#2F6FB8', fg: '#FFFFFF', frameColor: '#E8E8E8' }, s * 6.4, 3.1, z, -s * Math.PI / 2, hint.churin);
+        fence(x0, x1, z - 2.9, 1.2); fence(x0, x1, z + 2.9, 1.2);
+      } else if (k === 1) {
+        // a shop built in under the tracks; its front looks back toward the street
+        const kind = s < 0 ? 'yakitori' : 'laundry';
+        box(13.2, 5.0, 5.4, wallC, xm, 2.5, z, scene);
+        const front = mesh(cardGeo, guardFront(kind), s * (a + .88), 2.4, z, scene, false); front.rotation.y = -s * Math.PI / 2; front.scale.set(5.2, 4.55, 1);
+        for (const dz of [-1, 1]) { const sh = mesh(cardGeo, shutter, xm + s * 2 * dz, 1.4, z + dz * 2.71, scene, false); sh.rotation.y = dz > 0 ? 0 : Math.PI; sh.scale.set(4.2, 2.6, 1); box(.6, .5, .3, std('#E8E8E4'), xm - s * 3.5, 3.2, z + dz * 2.86, scene, false); }
+        if (kind === 'yakitori') {
+          for (const dz of [-2.3, 2.3]) { const l = mesh(new THREE.SphereGeometry(.28, 14, 10), lantern, s * (a + .55), 2.75, z + dz); l.scale.y = 1.35; lampPositions.push(new THREE.Vector3(s * (a + .1), 2.6, z + dz)); }
+          for (const [dz, n] of [[-2.15, 3], [-2.55, 2]]) for (let i = 0; i < n; i++) box(.48, .3, .36, crateMat('#D8433F'), s * (a + .45), .17 + i * .31, z + dz, scene);
+          sign({ text: 'やきとり', vertical: true, w: .42, h: 1.5, bg: '#FFF4E0', fg: '#B8322B', frameColor: '#4A3426' }, s * (a + .35), 1.1, z + 1.9, -s * Math.PI / 2, hint.yakitori);
+        } else {
+          sign({ lines: [{ t: 'コインランドリー', size: .2 }, { t: '24時間', size: .16 }], w: 1.5, h: .6, bg: '#FFFFFF', fg: '#2F6FB8', stripe: '#2F6FB8', frameColor: '#9AA2AA' }, s * (a + .5), 1.2, z - 1.9, -s * Math.PI / 2, hint.laundry);
+          lampPositions.push(new THREE.Vector3(s * (a + .2), 2.5, z));
+        }
+      } else if ((k + (s > 0 ? 1 : 0)) % 3 === 0) {
+        // a fenced yard: pallets, drums, a covered stack
+        fence(x0, x1, z - 2.9); fence(x0, x1, z + 2.9);
+        if (k < 7) {
+          for (let i = 0; i < 3; i++) box(1.1, .14, 1.1, std('#B08A5A'), xm + s * (i * 1.3 - 2), .07 + (i === 1 ? .15 : 0), z + 1.2, scene, false);
+          for (let i = 0; i < 3; i++) cyl(.3, .3, .9, std(pick(['#3E6FA8', '#C9493B', '#4E7F4E'])), xm + s * (2.6 + i * .66), .45, z - 1.4, 12);
+          const tarp = box(3, 1.2, 2, std('#3A6EA5', { roughness: .7 }), xm - s * 3.5, .6, z - 1.0); tarp.rotation.y = .05;
+        }
+      } else {
+        // a closed-up workshop or storeroom
+        box(13.2, 4.8, 5.4, std(pick(['#D9D2C4', '#CFC8BC', '#C9CDD2'])), xm, 2.4, z, scene, k < 6);
+        if (k < 7) for (const dz of [-1, 1]) { const sh = mesh(cardGeo, shutter, xm, 1.4, z + dz * 2.71, scene, false); sh.rotation.y = dz > 0 ? 0 : Math.PI; sh.scale.set(4.2, 2.6, 1); }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- the blocks behind the street, so the city goes on in every gap
+function backCity() {
+  // a few shared painted facades, picked by height (shared materials merge into few draw calls)
+  const pool = [];
+  for (const H of [8, 11, 14, 18, 24, 32, 44, 60]) for (const wall of [['#DCD6CC', '#E7E1D6'], ['#CFD6DE', '#D9D3CC'], ['#E6D8C8', '#C9CDD2']][pool.length % 3]) {
+    const f = facade(14, H, { wall, style: pick(['panel', 'tile', 'mosaic']), floors: Math.max(2, Math.round((H - 1) / 3.1)), cols: 4, groundH: 0, lit: .35, px: 14, balcony: rand() < .4 ? '#EEF0F2' : undefined });
+    pool.push({ H, mat: glowMat(f.map, f.night, 0, .9, { roughness: .9 }) });
+  }
+  const matFor = h => { const best = pool.filter(p => p.H >= h * .8 && p.H <= h * 1.25); return (best.length ? pick(best) : pool[pool.length - 1]).mat; };
+  const roofMat = std('#8F918F'), tank = std('#E3E1DA'), acMat = std('#E8E8E4'), rail = metal('#9AA0A6');
+  const gaps = s => [[-79, -65], [-141, -123], ...(s < 0 ? [[-7, 37]] : [])];
+  const rows = [{ x: 18.6, d: [9, 12], h: [7, 20], roof: true, cast: true }, { x: 32.5, d: [10, 13], h: [10, 28], roof: true }, { x: 48, d: [12, 16], h: [14, 40] }];
+  for (const s of [-1, 1]) rows.forEach((r, ri) => {
+    for (let zTop = 150; zTop > -380;) {
+      const len = range(9, 17), zBot = zTop - len;
+      // keep the lane under the tracks, the railroad crossing and the space behind the school open (the school only for the first two rows)
+      const g = gaps(s).find(([lo, hi]) => zBot < hi && zTop > lo && !(lo === -7 && ri === 2));
+      if (g) { zTop = g[0] - .2; continue; }
+      const d = range(...r.d), h = range(...r.h), x = s * (r.x + d / 2), zc = (zTop + zBot) / 2;
+      mesh(new THREE.BoxGeometry(d, h, len), matFor(h), x, h / 2, zc, scene, !!r.cast);
+      if (r.roof) {
+        box(d + .2, .25, len + .2, roofMat, x, h + .12, zc, scene, false);
+        if (rand() < .4) { const tx = x + range(-d / 4, d / 4), tz = zc + range(-len / 4, len / 4); cyl(.9, .9, 1.5, tank, tx, h + 1.4, tz, 14, scene, false); for (const [ox, oz] of [[-.6, -.6], [.6, -.6], [-.6, .6], [.6, .6]]) box(.08, .65, .08, rail, tx + ox, h + .32, tz + oz, scene, false); }
+        for (let i = 0, n = Math.floor(rand() * 4); i < n; i++) box(.8, .6, .5, acMat, x + range(-d / 3, d / 3), h + .55, zc + range(-len / 3, len / 3), scene, false);
+        if (h > 12 && rand() < .4) box(3, 2.4, 3.2, matFor(8), x + range(-d / 5, d / 5), h + 1.2, zc + range(-len / 5, len / 5), scene, false);
+      }
+      zTop = zBot - (rand() < .25 ? range(1.6, 3.6) : .25);
+    }
+  });
+  // taller towers further out
+  for (let i = 0; i < 150; i++) {
+    const s = rand() < .5 ? -1 : 1, x = s * range(70, 175), z = range(-440, 170), h = range(18, 70), w = range(10, 20);
+    if (Math.abs(z - VIA.z) < w / 2 + 6 || Math.abs(z + 132) < w / 2 + 6) continue;
+    mesh(new THREE.BoxGeometry(w, h, w), matFor(h), x, h / 2, z, scene, false);
+  }
+}
+
 // ================================================================ build everything
 let train;
 const nightLights = [];
@@ -3263,15 +3515,10 @@ function buildStreet() {
   building(1, -53, -66, { h: 13, wall: '#E2C7B8', style: 'plaster', floors: 3, cols: 3, ground: 'shop', ac: .6 });
 
   // ================= the elevated railway with みなと駅 (the street goes on under it)
-  const rail = group(0, 0, -72);
-  const concrete = std('#C9C6BF');
-  box(160, 1.3, 6, concrete, 0, 7.4, 0, rail);
-  box(160, .9, .2, std('#B5B1A9'), 0, 8.5, 2.9, rail); box(160, .9, .2, std('#B5B1A9'), 0, 8.5, -2.9, rail);
-  for (const x of [-7.2, 7.2, -22, 22, -40, 40, -60, 60]) { box(1.4, 6.8, 2.2, concrete, x, 3.4, 0, rail); box(2.2, .6, 3.2, concrete, x, 6.6, 0, rail); }
-  for (let x = -78; x < 80; x += 8) cyl(.08, .08, 4, metal('#7D838C'), x, 10.5, 2.4, 6, rail, false);
-  for (let x = -78; x < 80; x += 8) { const a = box(.08, .08, 5, metal('#7D838C'), x, 12.3, 0, rail, false); }
-  sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.4, 3.08, 0, hint.eki, rail);
-  sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.4, -3.08, Math.PI, hint.eki, rail);
+  const rail = group(0, 0, VIA.z);
+  isolated(() => { viaduct(rail); underTracks(); });
+  sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.32, 3.08, 0, hint.eki, rail);
+  sign({ lines: [{ t: 'みなと駅', size: .48 }, { t: 'MINATO STATION', size: .16, weight: 700 }], top: .42, w: 5.5, h: 1.4, bg: '#FFFFFF', fg: '#1D2B4A', stripe: '#7DB83A', frameColor: '#888', night: .9 }, 0, 7.32, -3.08, Math.PI, hint.eki, rail);
   // station building under the tracks on the right
   B = building(1, -78, -96, { h: 9, wall: '#ECE7DD', style: 'panel', floors: 2, cols: 4, ground: 'shop', roof: false, shutter: false });   // a station is always open
   shopSign(B, 'みなと駅 東口', ['#1D2B4A', '#FFFFFF', '#7DB83A'], hint.eki, 3.95);
@@ -3318,11 +3565,11 @@ function buildStreet() {
   const xing = group(0, 0, -132);
   const tieMat = std('#6B5B4E'), railMat = metal('#8E949C');
   for (const tz of [-1.6, 1.6]) {
-    for (let x = -90; x < 90; x += .7) box(.25, .12, 2.2, tieMat, x, .02, tz, xing, false);
-    for (const rz of [-.72, .72]) box(180, .16, .08, railMat, 0, .1, tz + rz, xing, false);
+    for (let x = -300; x < 300; x += .7) box(.25, .12, 2.2, tieMat, x, .02, tz, xing, false);
+    for (const rz of [-.72, .72]) box(600, .16, .08, railMat, 0, .1, tz + rz, xing, false);
   }
   const plank = mesh(new THREE.PlaneGeometry(12, 5.4), std('#5A5D66'), 0, .013, 0, xing, false); plank.rotation.x = -Math.PI / 2;
-  const gravel = mesh(new THREE.PlaneGeometry(180, 6), std('#9A958C'), 0, -.01, 0, xing, false); gravel.rotation.x = -Math.PI / 2;
+  const gravel = mesh(new THREE.PlaneGeometry(600, 6), std('#9A958C'), 0, -.01, 0, xing, false); gravel.rotation.x = -Math.PI / 2;
   const stripe = canvasTex(256, 32, (c, w, h) => { for (let i = 0; i < 16; i++) { c.fillStyle = i % 2 ? '#F2C230' : '#1E1E22'; c.beginPath(); c.moveTo(i * 16, 0); c.lineTo(i * 16 + 16, 0); c.lineTo(i * 16 + 4, h); c.lineTo(i * 16 - 12, h); c.fill(); } });
   for (const s of [-1, 1]) {
     const pz = s * 3.6, px = s * 4.6;
@@ -3401,13 +3648,7 @@ function buildStreet() {
   for (const [x, z] of [[4.0, 80], [-4.0, -100], [4.0, -150], [-4.0, -190], [4.0, -210], [-4.0, 47], [4.0, 3]]) if (claim(Math.sign(x), 'curb', z - 1, z + 1)) streetTree(x, z, 'green', .85);
 
   // ================= far city and hills so the world keeps going
-  for (let i = 0; i < 70; i++) {
-    const side = rand() < .5 ? -1 : 1;
-    const x = side * range(22, 120), z = range(-420, 160), h = range(12, 55), w = range(8, 18);
-    const f = facade(w, h, { wall: pick(['#D8DEE8', '#E8E2D8', '#C9D3E2', '#E9DAD5', '#DADCD8']), style: 'panel', floors: Math.round(h / 3.4), cols: Math.round(w / 3), groundH: 0, lit: .35, px: 10 });
-    if (x + w / 2 > -44 && x - w / 2 < -6 && z + w / 2 > -4 && z - w / 2 < 34) continue;      // keep the space behind the school open
-    mesh(new THREE.BoxGeometry(w, h, w), glowMat(f.map, f.night, 0, .9), x, h / 2, z, scene, false);
-  }
+  isolated(backCity);
   for (let i = 0; i < 30; i++) {
     const x = range(-80, 80), z = range(-520, -340), h = range(20, 80), w = range(12, 26);
     const f = facade(w, h, { wall: pick(['#D8DEE8', '#E8E2D8', '#C9D3E2', '#DADCD8']), style: 'panel', floors: Math.round(h / 3.4), cols: Math.round(w / 3), groundH: 0, lit: .4, px: 8 });
@@ -3919,7 +4160,7 @@ function frame() {
   placeSun(player.pos.z - 15);
   sky.material.uniforms.time.value = t;
   updateLife(dt);
-  if (train) { train.position.x += dt * 18; if (train.position.x > 200) train.position.x = -160; }
+  if (train) { train.position.x += dt * 18; if (train.position.x > 330) train.position.x = -250; }
   const on = Math.sin(t * 6) > 0;
   for (const m of blinkers) m.emissiveIntensity = (on ? 1 : .15) * (TIMES[current].night ? 2.2 : 1.2);
   if ((lightTimer -= dt) <= 0) {                // move the night lights to the nearest lamps
