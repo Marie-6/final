@@ -5184,16 +5184,18 @@ function stopVoice() {
   if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
-function sayBuiltIn(text, rate = 1, who) {
-  if (!('speechSynthesis' in window)) return;
+function sayBuiltIn(text, rate = 1, who, onStart) {
+  if (!('speechSynthesis' in window)) return onStart && onStart(null);
   try {
     const u = new SpeechSynthesisUtterance(text);
     const B = BUILTIN_VOICE[who];
     u.lang = 'ja-JP'; u.voice = (B && jaVoices.find(v => B.like.test(v.name))) || jaVoice; u.rate = 0.9 * rate; if (B) u.pitch = B.pitch;
+    // the built-in voice doesn't say how long it will take: about 8 kana a second at normal speed
+    if (onStart) u.onstart = () => onStart(text.length * 125 / u.rate);
     speechSynthesis.speak(u);
-  } catch (e) {}
+  } catch (e) { onStart && onStart(null); }
 }
-async function sayInworld(text, voiceId, req, rate) {
+async function sayInworld(text, voiceId, req, rate, onStart) {
   const key = voiceId + '|' + rate + '|' + text;
   let url = voiceCache.get(key);
   if (!url) {
@@ -5209,17 +5211,20 @@ async function sayInworld(text, voiceId, req, rate) {
   if (req !== voiceReq) return;   // something else started or stopped speech meanwhile
   voiceAudio = voiceEl; voiceEl.src = url;
   await voiceEl.play();
+  if (onStart && req === voiceReq) onStart(isFinite(voiceEl.duration) ? voiceEl.duration * 1000 : null);
 }
 // text may contain {漢字|かんじ} ruby; who is a VOICES key (unknown → built-in voice)
-function speak(text, who, rate = VOICE_RATE[who] || 1) {
-  if (!voiceOn) return;
+// onStart(ms) is called once, when the voice actually starts (ms = how long it lasts, or null if unknown / no voice),
+// so text on screen can be revealed in step with it
+function speak(text, who, rate = VOICE_RATE[who] || 1, onStart) {
+  if (!voiceOn) return onStart && onStart(null);
   stopVoice();
   const clean = String(text).replace(/\{([^|}]+)\|[^}]+\}/g, '$1').replace(/[〜~♪]/g, '');
-  if (!clean.trim()) return;
+  if (!clean.trim()) return onStart && onStart(null);
   const voiceId = VOICES[who];
-  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who);
+  if (!voiceKey || !voiceId) return sayBuiltIn(clean, rate, who, onStart);
   const req = voiceReq;
-  sayInworld(clean, voiceId, req, rate).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who); });
+  sayInworld(clean, voiceId, req, rate, onStart).catch(e => { console.warn(e); if (req === voiceReq) sayBuiltIn(clean, rate, who, onStart); });
 }
 //@src 365-talk-interaction.js
 // ---------------------------------------------------------------- talk: visual-novel conversations with 2D portraits
@@ -5307,8 +5312,8 @@ function startTalk(script) {
 }
 function endTalk() {
   if (!talking) return;
-  clearInterval(talking.typing);
-  stopVoice();
+  clearInterval(talking.typing); clearTimeout(talking.waitVoice);
+  stopVoice(); talkMicStop(); talkMicSay('');   // 3655-talk-mic.js
   talkEl.classList.remove('show'); talkQ('.pt').classList.remove('in');
   talking = null;
   setTimeout(() => { if (!talking) talkEl.classList.remove('on'); }, 350);
@@ -5321,6 +5326,7 @@ function talkGo(id) {
 }
 function talkShow(line, after) {
   const T = talking, S = T.script, by = line.by || 'npc';
+  talkMicStop();   // 3655-talk-mic.js
   const name = by === 'me' ? (lang === 'en' ? 'あなた' : 'あなた') : by === 'narr' ? '' : T.known ? S.name : '？？？';
   talkQ('.nm').textContent = name;
   const pt = talkQ('.pt');
@@ -5333,11 +5339,27 @@ function talkShow(line, after) {
   let n = 0;
   clearInterval(T.typing);
   T.line = line; T.after = after; T.done = false; T.hold = !!line.wait;   // wait: the line stays until talkRelease()
-  const tick = () => { n++; jp.innerHTML = talkRuby(toks.slice(0, n)); if (n >= toks.length) talkFinish(); };
   jp.innerHTML = '';
-  T.finish = () => { n = toks.length; jp.innerHTML = talkRuby(toks); };
-  T.typing = setInterval(tick, 38);
-  if (by === 'npc') speak(line.jp, S.who);   // 364-voice.js (your own replies stay silent)
+  T.finish = () => { clearTimeout(T.waitVoice); n = toks.length; jp.innerHTML = talkRuby(toks); };
+  // the text types in step with the voice: each token weighs as much as its reading (漢字 → かんじ = 3),
+  // and the whole line is spread over the length of the spoken clip
+  const w = toks.map(t => /[。、！？!?…]/.test(t.b) ? 3 : (t.r || t.b).length), total = w.reduce((a, b) => a + b, 0) || 1;
+  const startTyping = ms => {
+    if (talking !== T || T.line !== line || T.done || T.typing) return;
+    clearTimeout(T.waitVoice);
+    const span = ms ? ms * .92 : total * 38, t0 = performance.now();
+    T.typing = setInterval(() => {
+      const f = (performance.now() - t0) / span * total;
+      let k = 0, acc = 0; while (k < toks.length && acc + w[k] <= f) acc += w[k++];
+      if (k !== n) { n = k; jp.innerHTML = talkRuby(toks.slice(0, n)); }
+      if (n >= toks.length) talkFinish();
+    }, 30);
+  };
+  T.typing = null;
+  if (by === 'npc') {                                       // 364-voice.js (your own replies stay silent)
+    T.waitVoice = setTimeout(() => startTyping(null), 4000);  // the voice never came: type anyway
+    speak(line.jp, S.who, undefined, startTyping);
+  } else startTyping(null);
 }
 function talkFinish() {
   const T = talking; if (!T || T.done) return;
@@ -5347,6 +5369,7 @@ function talkFinish() {
   if (line.introduce) T.known = true, talkMet.add(T.script.who);
   if (line.choices && !T.after) {
     talkQ('.ch').innerHTML = line.choices.map((c, k) => `<button type="button" data-k="${k}"><kbd>${k + 1}</kbd><span>${talkRuby(talkTokens(c.jp))}<small>${talkSub(c)}</small></span></button>`).join('');
+    talkMicListen();   // say your reply out loud (3655-talk-mic.js)
   } else if (!T.hold) talkQ('.nx').classList.add('in');
 }
 // a `wait` line (e.g. the barista making your coffee) moves on by itself when the scene is done
@@ -5380,10 +5403,121 @@ addEventListener('keydown', e => {
   if (k === 'escape') endTalk();
   else if (k === ' ' || k === 'enter' || k === 'e') talkNext();
   else if (k >= '1' && k <= '9') talkChoose(+k - 1);
+  else if (k === 'm') talkMicToggle();   // 3655-talk-mic.js
 }, true);
 // a place in the world where pressing E starts a conversation
 function addTalkSpot(x, z, reach, verb, script, y = 0) {
   addAction(x, z, reach, () => verb, () => startTalk(script), () => !talking, y);
+}
+//@src 3655-talk-mic.js
+// ---------------------------------------------------------------- talk mic: answer Tanaka-sensei or the barista by speaking
+// When a conversation offers replies, the mic listens (after the other person has finished talking) and picks the reply
+// that sounds most like what you said: it turns green, and the conversation goes on. The 🎤 pill (top right, or M) turns it on/off; the choice is remembered.
+// Uses the browser's speech recognition (Chrome, Edge, Safari). Hooks live in 365-talk-interaction.js.
+const TalkSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let talkMicOn = true, talkRec = null, talkMicWait = 0, talkMicRetry = 0;
+try { talkMicOn = localStorage.getItem('talkMic') !== '0'; } catch (e) {}
+const TALK_MIC_UI = {
+  en: { on: 'Mic on', off: 'Mic off', listening: 'Listening… say your reply', heard: 'Heard', again: "Didn't catch that. Say one of the replies.", noMic: 'Microphone not available' },
+  zh: { on: '麦克风 开', off: '麦克风 关', listening: '正在听…请说出你的回答', heard: '听到', again: '没听清，请说出其中一个回答。', noMic: '无法使用麦克风' },
+};
+const talkMicT = k => (TALK_MIC_UI[lang] || TALK_MIC_UI.en)[k];
+const talkMicEl = (() => {
+  const st = document.createElement('style');
+  st.textContent = `
+#talk .mk{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:110px;display:inline-flex;align-items:center;gap:8px;background:rgba(8,12,24,.55);color:#fff;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px}
+#talk .mk i{width:9px;height:9px;border-radius:50%;background:#8a8f9c}
+#talk .mk.on i{background:#D8433F}
+#talk .mk.live i{animation:talkMicPulse .8s ease-in-out infinite}
+#talk .mk kbd{background:rgba(255,255,255,.18);color:#fff;font-size:11px}
+@keyframes talkMicPulse{50%{transform:scale(1.6);opacity:.6}}
+#talk .ms{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));right:16px;max-width:min(420px,80vw);text-align:right;font-size:14px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+#talk .ch button.heard{transform:translateX(10px);background:#2E9E5B;color:#fff;box-shadow:0 0 0 3px #7FD9A2,0 8px 24px rgba(0,0,0,.3)}
+#talk .ch button.heard small{color:#E3F7EA}
+#talk .ch button.heard kbd{background:#fff;color:#2E9E5B}`;
+  document.head.appendChild(st);
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'mk'; b.innerHTML = '<i></i><span></span><kbd>M</kbd>';
+  const s = document.createElement('div'); s.className = 'ms'; s.setAttribute('aria-live', 'polite');
+  talkEl.append(b, s);
+  b.addEventListener('click', e => { e.stopPropagation(); talkMicToggle(); });
+  if (!TalkSR) b.style.display = 'none';
+  return b;
+})();
+const talkMicSay = t => { talkQ('.ms').textContent = t || ''; };
+function talkMicPaint() {
+  talkMicEl.classList.toggle('on', talkMicOn); talkMicEl.classList.toggle('live', !!talkRec);
+  talkMicEl.querySelector('span').textContent = talkMicT(talkMicOn ? 'on' : 'off');
+}
+talkMicPaint();
+function talkMicToggle() {
+  if (!TalkSR) return;
+  talkMicOn = !talkMicOn;
+  try { localStorage.setItem('talkMic', talkMicOn ? '1' : '0'); } catch (e) {}
+  if (talkMicOn) talkMicListen(); else { talkMicStop(); talkMicSay(''); }
+  talkMicPaint();
+}
+function talkMicStop() {
+  clearTimeout(talkMicWait);
+  if (talkRec) { const r = talkRec; talkRec = null; r.onend = r.onresult = r.onerror = null; try { r.abort(); } catch (e) {} }
+  talkMicPaint();
+}
+const talkChoicesUp = () => { const T = talking; return !!(T && T.done && T.line.choices && !T.after); };
+const talkVoiceBusy = () => (voiceAudio && !voiceAudio.paused) || ('speechSynthesis' in window && speechSynthesis.speaking);
+// called when replies appear: wait for the other person's voice to end (so the mic doesn't hear them), then listen
+function talkMicListen(retry) {
+  talkMicStop();
+  if (!TalkSR || !talkMicOn || !talkChoicesUp()) return;
+  if (!retry) talkMicRetry = 0;
+  if (talkVoiceBusy()) { talkMicWait = setTimeout(() => talkMicListen(true), 150); return; }
+  const rec = talkRec = new TalkSR();
+  rec.lang = 'ja-JP'; rec.maxAlternatives = 5; rec.interimResults = false;
+  talkMicSay(talkMicT('listening'));
+  rec.onresult = e => {
+    const alts = [...e.results[0]].map(a => a.transcript), k = talkMicMatch(alts, talking.line.choices);
+    if (k < 0) return talkMicSay(talkMicT('heard') + ' 「' + alts[0] + '」 ' + talkMicT('again'));
+    // you've already said it out loud: the reply turns green and the other person answers (your line isn't typed out again)
+    rec.onend = null; talkRec = null; talkMicPaint(); talkMicSay('');
+    const btn = talkQ(`.ch button[data-k="${k}"]`); if (btn) btn.classList.add('heard');
+    const c = talking.line.choices[k];
+    setTimeout(() => { if (talkChoicesUp()) c.next !== undefined ? talkGo(c.next) : talkChoose(k); }, 700);
+  };
+  rec.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
+      talkMicOn = false; talkMicSay(talkMicT('noMic')); talkMicPaint();
+    }
+  };
+  // nothing usable heard: listen again while the replies are still waiting (a few tries, then you can press M or click)
+  rec.onend = () => {
+    if (talkRec !== rec) return;
+    talkRec = null; talkMicPaint();
+    if (talkMicOn && talkChoicesUp() && ++talkMicRetry < 6) talkMicWait = setTimeout(() => talkMicListen(true), 400);
+    else if (talkQ('.ms').textContent === talkMicT('listening')) talkMicSay('');
+  };
+  try { rec.start(); } catch (e) { talkRec = null; }
+  talkMicPaint();
+}
+// which reply did you say? compare sounds (kana) with each reply, written both with kanji and in its reading
+const TALK_MIC_FIX = [[/下さい/g, 'ください'], [/お?願い/g, 'おねがい'], [/宜しく/g, 'よろしく'], [/初めまして/g, 'はじめまして'],
+  [/有難う|有り難う/g, 'ありがとう'], [/済みません/g, 'すみません'], [/分かりません|判りません/g, 'わかりません'], [/左様なら/g, 'さようなら'],
+  [/珈琲/g, 'コーヒー'], [/お水/g, 'おみず'], [/水/g, 'みず'], [/熱い|暑い/g, 'ホット'], [/テイクアウト|テークアウト/g, 'もちかえり'], [/イートイン/g, 'てんない']];
+function talkMicNorm(s) {
+  s = String(s).normalize('NFKC');
+  for (const [re, to] of TALK_MIC_FIX) s = s.replace(re, to);
+  return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/[\s。、！？!?.,「」…〜~ー・]/g, '').toLowerCase();
+}
+function talkMicSim(a, b) {   // how alike two strings are (shared pairs of characters), 0…1
+  const bi = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) m.set(s.slice(i, i + 2), (m.get(s.slice(i, i + 2)) || 0) + 1); return m; };
+  if (a.length < 2 || b.length < 2) return a && a === b ? 1 : 0;
+  const A = bi(a), B = bi(b); let hit = 0;
+  for (const [g, n] of A) hit += Math.min(n, B.get(g) || 0);
+  return 2 * hit / (a.length - 1 + b.length - 1);
+}
+function talkMicMatch(alts, choices) {
+  const forms = choices.map(c => [c.jp.replace(/\{([^|}]+)\|[^}]+\}/g, '$1'), c.jp.replace(/\{[^|}]+\|([^}]+)\}/g, '$1')].map(talkMicNorm));
+  const score = choices.map((c, k) => Math.max(...alts.map(talkMicNorm).flatMap(h => forms[k].map(f => talkMicSim(h, f)))));
+  const order = score.map((s, k) => k).sort((a, b) => score[b] - score[a]);
+  const best = score[order[0]], second = order.length > 1 ? score[order[1]] : 0;
+  return best >= .3 && best - second >= .08 ? order[0] : -1;
 }
 //@src 366-talk-tanaka.js
 // ---------------------------------------------------------------- talk: 田中先生 at the school's 受付 window
@@ -5453,8 +5587,8 @@ scene.add(TANAKA3D.root);
 }
 //@src 368-talk-barista.js
 // ---------------------------------------------------------------- talk: the barista at カフェ みなと's register
-// Order a coffee: hot or iced, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
-// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; give: true hands over the cup;
+// Order a coffee: hot or iced, for here or to go, 300円. She hands it to you at the end (369-barista-3d.js), and E drinks it.
+// face: 'smile' | 'surprised'; act: 'bow' | 'nod' | 'point' | 'offer'; order: 'hot' | 'ice'; cup: 'here' (mug / glass) | 'togo' (paper / plastic cup); give: true hands over the cup;
 // brew: true (on a narrator line) sends her to the espresso machine; wait: true holds the line until she is back.
 VERBS.chumon = { r: [['注文', 'ちゅうもん'], ['する', '']], ro: 'chūmon suru', en: 'Order', zh: '点单' };
 const BARISTA_DAY1 = {
@@ -5474,8 +5608,15 @@ const BARISTA_DAY1 = {
         { jp: 'ホットで おねがいします。', ro: 'Hotto de onegaishimasu.', en: 'Hot, please.', zh: '请给我热的。', next: 'hot' },
         { jp: 'アイスで おねがいします。', ro: 'Aisu de onegaishimasu.', en: 'Iced, please.', zh: '请给我冰的。', next: 'ice' },
       ] },
-    { id: 'hot', jp: 'ホットコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Hotto kōhī, sanbyaku en desu.', en: "One hot coffee: that's 300 yen.", zh: '热咖啡，300日元。', order: 'hot', next: 'pay' },
-    { id: 'ice', jp: 'アイスコーヒー、{300|さんびゃく}{円|えん}です。', ro: 'Aisu kōhī, sanbyaku en desu.', en: "One iced coffee: that's 300 yen.", zh: '冰咖啡，300日元。', order: 'ice', next: 'pay' },
+    { id: 'hot', jp: 'ホットですね。', ro: 'Hotto desu ne.', en: 'Hot, then.', zh: '热的是吧。', order: 'hot', act: 'nod', next: 'here' },
+    { id: 'ice', jp: 'アイスですね。', ro: 'Aisu desu ne.', en: 'Iced, then.', zh: '冰的是吧。', order: 'ice', act: 'nod', next: 'here' },
+    { id: 'here', jp: '{店内|てんない}で お{召|め}し{上|あ}がりですか？ お{持|も}ち{帰|かえ}りですか？', ro: 'Tennai de omeshiagari desu ka? Omochikaeri desu ka?', en: 'For here, or to go?', zh: '在店里用，还是带走？',
+      choices: [
+        { jp: '{店内|てんない}で おねがいします。', ro: 'Tennai de onegaishimasu.', en: 'For here, please.', zh: '在店里用。', next: 'in' },
+        { jp: '{持|も}ち{帰|かえ}りで おねがいします。', ro: 'Mochikaeri de onegaishimasu.', en: 'To go, please.', zh: '带走。', next: 'out' },
+      ] },
+    { id: 'in', jp: '{店内|てんない}ですね。{300|さんびゃく}{円|えん}です。', ro: 'Tennai desu ne. Sanbyaku en desu.', en: "For here. That's 300 yen.", zh: '店内用餐。300日元。', cup: 'here', next: 'pay' },
+    { id: 'out', jp: 'お{持|も}ち{帰|かえ}りですね。{300|さんびゃく}{円|えん}です。', ro: 'Omochikaeri desu ne. Sanbyaku en desu.', en: "To go. That's 300 yen.", zh: '带走是吧。300日元。', cup: 'togo', next: 'pay' },
     { id: 'pay', by: 'narr', jp: '（{300|さんびゃく}{円|えん}を はらう）', ro: '(sanbyaku en o harau)', en: '(You pay 300 yen.)', zh: '（你付了300日元。）' },
     { jp: 'ちょうど いただきます。{少々|しょうしょう} お{待|ま}ちください。', ro: 'Chōdo itadakimasu. Shōshō omachi kudasai.', en: 'Exact change, thank you. One moment, please.', zh: '正好，收您钱了。请稍等。', act: 'nod' },
     { by: 'narr', jp: '……', ro: '', en: '(She makes your coffee.)', zh: '（她在给你做咖啡。）', brew: true, wait: true },
@@ -5487,7 +5628,7 @@ const BARISTA_DAY1 = {
 //@src 369-barista-3d.js
 // ---------------------------------------------------------------- the barista in 3D, behind カフェ みなと's register
 // She stands behind the レジ and looks up at you when you come near. Press E there to order (368-talk-barista.js):
-// she bows, turns to the machine to make your coffee, and hands you a hot paper cup or an iced coffee to drink (E).
+// she bows, turns to the machine to make your coffee, and hands you your coffee to drink (E): a mug or glass for here, a paper or plastic cup to go.
 const BARISTA3D = makePerson3d({
   skin: '#F8DCC6', hair: '#4A3128', hairStyle: 'bob', bun: true, lashes: true, lips: '#A85A55',
   shirt: '#F4F1EA', apron: '#4E3B31', pants: '#33363F', shoes: '#2E2A28', scale: .95,
@@ -5496,17 +5637,34 @@ people3d.barista = BARISTA3D;
 scene.add(BARISTA3D.root);
 BARISTA3D.root.visible = false;   // until the café is built
 
-// a coffee in your hand: a hot paper cup with a sleeve and lid, or an iced coffee with a straw
-function holdCoffee(kind) {
+// a coffee in your hand. For here: a white mug, or an iced coffee in a glass. To go: a hot paper cup with a sleeve and lid,
+// or an iced coffee in a plastic cup with a dome lid. w is the coffee, which goes down as you drink (350-things-you-can-do-sit-stand.js)
+function holdCoffee(kind, cup = 'togo') {
   if (holding) camera.remove(holding.g);
   if (!camera.parent) scene.add(camera);
   const g = new THREE.Group(); g.position.set(.2, -.2, -.45); camera.add(g);
+  const here = cup === 'here', coffee = std('#3A2116', { roughness: .2 });
   let w;
   if (kind === 'ice') {
-    mesh(new THREE.CylinderGeometry(.04, .032, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
-    w = mesh(new THREE.CylinderGeometry(.037, .031, .1, 16), std('#3A2116', { roughness: .2 }), 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
+    // a straight heavy glass for here, a tapered clear plastic cup to go
+    const r0 = here ? .039 : .04, r1 = here ? .036 : .032;
+    mesh(new THREE.CylinderGeometry(r0, r1, .12, 16, 1, true), new THREE.MeshStandardMaterial({ color: '#EAF4F8', transparent: true, opacity: here ? .24 : .16, roughness: .05, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    if (here) mesh(new THREE.CylinderGeometry(r1, r1, .012, 16), new THREE.MeshStandardMaterial({ color: '#DDEDF3', transparent: true, opacity: .5, roughness: .05 }), 0, -.054, 0, g, false);   // thick glass bottom
+    w = mesh(new THREE.CylinderGeometry(r0 - .003, r1 - .001, .1, 16), coffee, 0, -.055, 0, g, false); w.geometry.translate(0, .05, 0);
     for (let i = 0; i < 4; i++) mesh(new THREE.BoxGeometry(.018, .018, .018), new THREE.MeshStandardMaterial({ color: '#F2FAFF', transparent: true, opacity: .6, roughness: .05 }), (i % 2 - .5) * .025, .03 - (i > 1) * .02, (i > 1 ? .5 : -.5) * .015, g, false).rotation.set(i, i * 2, 0);
-    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std('#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+    if (!here) {   // dome lid
+      const dome = new THREE.SphereGeometry(.041, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); dome.scale(1, .55, 1);
+      mesh(dome, new THREE.MeshStandardMaterial({ color: '#F2F8FA', transparent: true, opacity: .22, roughness: .05, depthWrite: false }), 0, .06, 0, g, false);
+    }
+    const straw = mesh(new THREE.CylinderGeometry(.004, .004, .17, 6), std(here ? '#E8E2D6' : '#3F8A5A'), .012, .07, 0, g, false); straw.rotation.z = -.15;
+  } else if (here) {
+    // a white ceramic mug with a handle, coffee inside
+    const white = std('#F6F3EE', { roughness: .35 });
+    mesh(new THREE.CylinderGeometry(.042, .04, .1, 20, 1, true), new THREE.MeshStandardMaterial({ color: '#F6F3EE', roughness: .35, side: THREE.DoubleSide }), 0, 0, 0, g, false);
+    mesh(new THREE.CylinderGeometry(.04, .04, .008, 20), white, 0, -.046, 0, g, false);   // bottom
+    mesh(new THREE.TorusGeometry(.044, .0042, 8, 24), white, 0, .05, 0, g, false).rotation.x = Math.PI / 2;   // rim
+    const handle = mesh(new THREE.TorusGeometry(.024, .0075, 8, 16, Math.PI), white, .042, .002, 0, g, false); handle.rotation.z = -Math.PI / 2;
+    w = mesh(new THREE.CylinderGeometry(.039, .037, .085, 20), coffee, 0, -.042, 0, g, false); w.geometry.translate(0, .0425, 0);
   } else {
     mesh(new THREE.CylinderGeometry(.04, .031, .115, 16), std('#F7F3EC', { roughness: .8 }), 0, 0, 0, g, false);
     mesh(new THREE.CylinderGeometry(.0385, .034, .045, 16), std('#9A6B45', { roughness: .9 }), 0, -.008, 0, g, false);   // sleeve
@@ -5528,7 +5686,7 @@ function placeBarista() {
   P.root.position.set(home[0], R.floor, home[1]); P.root.rotation.y = home[2]; P.root.visible = true;
   addTalkSpot(R.x - .9, R.z + .3, 1.5, 'chumon', BARISTA_DAY1);
   P.speed = 1.3;
-  const S = { line: null, order: 'hot', near: false, act: null, give: false, brew: 0, served: false };
+  const S = { line: null, order: 'hot', cup: 'togo', near: false, act: null, give: false, brew: 0, served: false };
   const arrived = () => !P.path.length && Math.hypot(P.target.x - P.root.position.x, P.target.y - P.root.position.z) < .03;
   people3dStage.push(dt => {
     const T = talking && talking.script.who === 'barista' ? talking : null;
@@ -5536,6 +5694,7 @@ function placeBarista() {
       S.line = T.line;
       const L = T.line, by = L.by || 'npc';
       if (L.order) S.order = L.order;
+      if (L.cup) S.cup = L.cup;
       if (L.brew) { walk(machine); S.brew = 1; } else if (by === 'npc' && !S.served) walk(home);
       if (by === 'npc') { P.face = L.face || ''; S.act = L.act || null; S.give = !!L.give; }
       else if (by === 'me') P.face = '';
@@ -5543,7 +5702,7 @@ function placeBarista() {
     // gestures wait until she is back at the register, so she never bows or reaches out mid-walk
     if (S.act && arrived()) {
       P.act(S.act); S.act = null;
-      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order), 900); }   // as her hands come forward
+      if (S.give) { S.give = false; setTimeout(() => holdCoffee(S.order, S.cup), 900); }   // as her hands come forward
     }
     // making the coffee: walk to the machine, work at it for a moment, then turn around and serve you right there
     if (S.brew === 1 && arrived()) { S.brew = 2; S.t = 0; P.act('offer'); }
