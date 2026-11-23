@@ -14,8 +14,10 @@ const VERBS = {
 let seated = null, seatTarget = null, seatAnim = null, actAnim = null, holding = null, eyeY = 1.62, seatLabel = '';
 const seatBtn = document.getElementById('seat');
 const angleTo = (a, b) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a));      // b, unwrapped to be near a
+const onSitHooks = [];   // f(seat), called once you've sat down (e.g. 362-class-begins.js)
 function sitDown(s) {
   seated = { seat: s, from: player.pos.clone() };
+  setTimeout(() => { if (seated && seated.seat === s) onSitHooks.forEach(f => f(s)); }, 550);
   seatAnim = { t: 0, a: player.pos.clone(), b: new THREE.Vector3(s.x, 0, s.z), ya: eyeY, yb: s.eye, yawA: player.yaw, yawB: angleTo(player.yaw, s.yaw), pA: player.pitch, pB: -.08 };
 }
 function standUp() {
